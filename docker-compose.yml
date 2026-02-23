@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: domainmailer
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: ./api
+    env_file:
+      - ./api/.env
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "4000:4000"
+    command: ["sh", "-c", "npm run prisma:push && node dist/server.js"]
+
+  worker:
+    build:
+      context: ./api
+    env_file:
+      - ./api/.env
+    depends_on:
+      - postgres
+      - redis
+    command: ["node", "dist/worker/worker.js"]
+
+  front:
+    build:
+      context: ./front
+    env_file:
+      - ./front/.env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
