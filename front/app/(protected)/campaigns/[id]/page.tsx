@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { api, Campaign } from "../../../../lib/api";
+import { api, Campaign, apiBase } from "../../../../lib/api";
 
 interface CampaignStats {
   pending: number;
@@ -72,7 +72,7 @@ export default function CampaignDetailPage() {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    const eventSource = new EventSource(`http://localhost:4000/api/campaigns/events?token=${token}`);
+    const eventSource = new EventSource(`${apiBase.replace('/api', '')}/api/campaigns/events?token=${token}`);
 
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
@@ -243,29 +243,27 @@ export default function CampaignDetailPage() {
           <h2 className="mb-4 text-lg font-semibold text-sky-400">Campaign Settings</h2>
           
           {/* Initial Email Template */}
-          {campaign.subjectTemplate && (
-            <div className="mb-4 rounded-lg border border-slate-700 bg-slate-950 p-4">
-              <h3 className="mb-2 text-sm font-semibold text-sky-300">Initial Email (Step 1)</h3>
-              <div className="mb-2">
-                <div className="text-xs text-slate-400">Subject:</div>
-                <div className="rounded border border-slate-800 bg-slate-900 p-2 text-sm text-slate-200">
-                  {campaign.subjectTemplate}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-400">Body:</div>
-                <div className="whitespace-pre-wrap rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-300">
-                  {campaign.bodyTemplate}
-                </div>
+          <div className="mb-4 rounded-lg border border-slate-700 bg-slate-950 p-4">
+            <h3 className="mb-2 text-sm font-semibold text-sky-300">Initial Email (Step 1)</h3>
+            <div className="mb-2">
+              <div className="text-xs text-slate-400">Subject:</div>
+              <div className="rounded border border-slate-800 bg-slate-900 p-2 text-sm text-slate-200">
+                {campaign.subjectTemplate || "No subject template"}
               </div>
             </div>
-          )}
+            <div>
+              <div className="text-xs text-slate-400">Body:</div>
+              <div className="whitespace-pre-wrap rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-300">
+                {campaign.bodyTemplate || "No body template"}
+              </div>
+            </div>
+          </div>
 
           {/* Daily Limit & Timing */}
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <div className="text-xs text-slate-400">Daily Limit</div>
-              <div className="font-semibold text-slate-200">{campaign.dailyLimit} emails/day</div>
+              <div className="font-semibold text-slate-200">{campaign.dailyLimit ?? "Not set"} emails/day</div>
             </div>
             {campaign.startTime && (
               <div>

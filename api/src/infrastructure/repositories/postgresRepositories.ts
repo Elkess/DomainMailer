@@ -15,12 +15,19 @@ const mapCampaign = (row: any): Campaign => ({
   name: row.name,
   subjectTemplate: row.subject_template,
   bodyTemplate: row.body_template,
-  requiredVariables: row.required_variables,
+  requiredVariables: row.required_variables || [],
   dailyLimit: row.daily_limit,
   delayMinSeconds: row.delay_min_seconds,
   delayMaxSeconds: row.delay_max_seconds,
-  maxRetryAttempts: row.max_retry_attempts,
+  maxRetryAttempts: 3, // Default value as this field doesn't exist in DB
   status: row.status,
+  startTime: row.start_time,
+  followUp2Body: row.follow_up2_body,
+  followUp2DelayHours: row.follow_up2_delay_hours,
+  followUp3Body: row.follow_up3_body,
+  followUp3DelayHours: row.follow_up3_delay_hours,
+  followUp4Body: row.follow_up4_body,
+  followUp4DelayHours: row.follow_up4_delay_hours,
   createdAt: row.created_at,
   updatedAt: row.updated_at
 });

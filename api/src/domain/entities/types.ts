@@ -27,6 +27,13 @@ export interface Campaign {
   delayMaxSeconds: number;
   maxRetryAttempts: number;
   status: CampaignStatus;
+  startTime?: Date | null;
+  followUp2Body?: string | null;
+  followUp2DelayHours?: number | null;
+  followUp3Body?: string | null;
+  followUp3DelayHours?: number | null;
+  followUp4Body?: string | null;
+  followUp4DelayHours?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }

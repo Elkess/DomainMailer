@@ -57,7 +57,7 @@ export const campaignService = {
   },
 
   async listCampaigns(userId: string) {
-    return prisma.campaigns.findMany({
+    const campaigns = await prisma.campaigns.findMany({
       where: { user_id: userId },
       select: {
         id: true,
@@ -81,6 +81,24 @@ export const campaignService = {
       },
       orderBy: { created_at: "desc" }
     });
+
+    // Map snake_case fields to camelCase for frontend
+    return campaigns.map(campaign => ({
+      id: campaign.id,
+      name: campaign.name,
+      status: campaign.status,
+      dailyLimit: campaign.daily_limit,
+      startTime: campaign.start_time?.toISOString() || null,
+      subjectTemplate: campaign.subject_template,
+      bodyTemplate: campaign.body_template,
+      followUp2Body: campaign.follow_up2_body,
+      followUp2DelayHours: campaign.follow_up2_delay_hours,
+      followUp3Body: campaign.follow_up3_body,
+      followUp3DelayHours: campaign.follow_up3_delay_hours,
+      followUp4Body: campaign.follow_up4_body,
+      followUp4DelayHours: campaign.follow_up4_delay_hours,
+      _count: campaign._count
+    }));
   },
 
   async updateStatus(input: { userId: string; campaignId: string; action: "start" | "pause" | "resume" | "delete" }) {

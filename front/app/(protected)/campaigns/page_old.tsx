@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { api, Campaign } from "../../../lib/api";
+import { api, Campaign, apiBase } from "../../../lib/api";
 
 interface CampaignWithStats {
   item: Campaign;
@@ -117,7 +117,6 @@ export default function CampaignsPage() {
     const token = typeof window !== "undefined" ? localStorage.getItem("domainmailer_token") : null;
     if (!token) return;
 
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
     const eventSource = new EventSource(`${apiBase}/campaigns/events?token=${encodeURIComponent(token)}`);
 
     eventSource.onopen = () => {
