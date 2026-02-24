@@ -39,22 +39,97 @@ const getRemainingSlots = async (campaign: { id: string; user_id: string; daily_
   return Math.min(campaignRemaining, userRemaining, globalRemaining, minuteRemaining);
 };
 
-const pickNextLead = async (campaign: { id: string; user_id: string }) => {
+const pickNextLead = async (campaign: { id: string; user_id: string; follow_up2_body: string | null; follow_up2_delay_hours: number | null; follow_up3_body: string | null; follow_up3_delay_hours: number | null; follow_up4_body: string | null; follow_up4_delay_hours: number | null }) => {
+  // First priority: new pending leads
   const pending = await prisma.leads.findFirst({
     where: { campaign_id: campaign.id, user_id: campaign.user_id, status: LeadStatus.PENDING },
     orderBy: { created_at: "asc" }
   });
   if (pending) {
-    return pending;
+    return { lead: pending, isFollowUp: false, followUpStep: 0 };
   }
 
-  // Retry failed leads
+  // Second priority: follow-ups that are due
+  const now = new Date();
+  logger.info(`🔍 Checking for follow-ups at ${now.toISOString()}`);
+  
+  // Check for follow-up 2 candidates
+  if (campaign.follow_up2_body && campaign.follow_up2_delay_hours) {
+    const hoursAgo = new Date(now.getTime() - campaign.follow_up2_delay_hours * 60 * 60 * 1000);
+    logger.info(`📅 Follow-up 2 delay: ${campaign.follow_up2_delay_hours}h, checking leads sent before ${hoursAgo.toISOString()}`);
+    const followUp2Lead = await prisma.leads.findFirst({
+      where: {
+        campaign_id: campaign.id,
+        user_id: campaign.user_id,
+        status: LeadStatus.SENT,
+        currentSequenceStep: 1,
+        sent_at: { lte: hoursAgo },
+        OR: [
+          { receivedReply: false },
+          { receivedReply: null }
+        ]
+      },
+      orderBy: { sent_at: "asc" }
+    });
+    if (followUp2Lead) {
+      logger.info(`✅ Found follow-up 2 candidate: ${followUp2Lead.email}`);
+      return { lead: followUp2Lead, isFollowUp: true, followUpStep: 2 };
+    } else {
+      logger.info(`❌ No follow-up 2 candidates found`);
+    }
+  }
+
+  // Check for follow-up 3 candidates
+  if (campaign.follow_up3_body && campaign.follow_up3_delay_hours) {
+    const hoursAgo = new Date(now.getTime() - campaign.follow_up3_delay_hours * 60 * 60 * 1000);
+    const followUp3Lead = await prisma.leads.findFirst({
+      where: {
+        campaign_id: campaign.id,
+        user_id: campaign.user_id,
+        status: LeadStatus.SENT,
+        currentSequenceStep: 2,
+        sent_at: { lte: hoursAgo },
+        OR: [
+          { receivedReply: false },
+          { receivedReply: null }
+        ]
+      },
+      orderBy: { sent_at: "asc" }
+    });
+    if (followUp3Lead) {
+      return { lead: followUp3Lead, isFollowUp: true, followUpStep: 3 };
+    }
+  }
+
+  // Check for follow-up 4 candidates
+  if (campaign.follow_up4_body && campaign.follow_up4_delay_hours) {
+    const hoursAgo = new Date(now.getTime() - campaign.follow_up4_delay_hours * 60 * 60 * 1000);
+    const followUp4Lead = await prisma.leads.findFirst({
+      where: {
+        campaign_id: campaign.id,
+        user_id: campaign.user_id,
+        status: LeadStatus.SENT,
+        currentSequenceStep: 3,
+        sent_at: { lte: hoursAgo },
+        OR: [
+          { receivedReply: false },
+          { receivedReply: null }
+        ]
+      },
+      orderBy: { sent_at: "asc" }
+    });
+    if (followUp4Lead) {
+      return { lead: followUp4Lead, isFollowUp: true, followUpStep: 4 };
+    }
+  }
+
+  // Third priority: retry failed leads
   const failed = await prisma.leads.findFirst({
     where: { campaign_id: campaign.id, user_id: campaign.user_id, status: LeadStatus.FAILED },
     orderBy: { created_at: "asc" }
   });
 
-  return failed ?? null;
+  return failed ? { lead: failed, isFollowUp: false, followUpStep: 0 } : null;
 };
 
 const processSingleLead = async (campaignId: string): Promise<void> => {
@@ -77,8 +152,8 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
     return;
   }
 
-  const lead = await pickNextLead(campaign);
-  if (!lead) {
+  const result = await pickNextLead(campaign);
+  if (!result) {
     const openCount = await prisma.leads.count({
       where: {
         campaign_id: campaign.id,
@@ -86,16 +161,68 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
         status: { in: [LeadStatus.PENDING, LeadStatus.QUEUED, LeadStatus.SENDING] }
       }
     });
-    if (openCount === 0) {
+    
+    // Also check if there are any leads waiting for follow-ups
+    const followUpCount = await prisma.leads.count({
+      where: {
+        campaign_id: campaign.id,
+        user_id: campaign.user_id,
+        status: LeadStatus.SENT,
+        OR: [
+          { receivedReply: false },
+          { receivedReply: null }
+        ],
+        currentSequenceStep: { lt: 4 }
+      }
+    });
+    
+    // Check if there are leads that might be due for follow-ups soon
+   const potentialFollowUps = await prisma.leads.count({
+      where: {
+        campaign_id: campaign.id,
+        user_id: campaign.user_id,
+        status: LeadStatus.SENT,
+        OR: [
+          { receivedReply: false },
+          { receivedReply: null }
+        ],
+        currentSequenceStep: { not: 4 }
+      }
+    });
+    
+    if (openCount === 0 && followUpCount === 0 && potentialFollowUps === 0) {
+      logger.info(`✅ Campaign ${campaign.id} completed - no more emails to send`);
       await prisma.campaigns.update({ where: { id: campaign.id }, data: { status: CampaignStatus.COMPLETED } });
+    } else {
+      logger.info(`⏳ Campaign ${campaign.id} waiting - pending: ${openCount}, due followups: ${followUpCount}, potential: ${potentialFollowUps}`);
     }
     return;
   }
 
+  const { lead, isFollowUp, followUpStep } = result;
+  
+  if (isFollowUp) {
+    logger.info(`📧 Processing follow-up #${followUpStep} for lead: ${lead.email} (sent ${lead.sent_at})`);
+    logger.info(`   Thread ID: ${lead.lastThreadId || "NONE - will create new thread"}`);
+  }
+  
   await prisma.leads.update({ where: { id: lead.id }, data: { status: LeadStatus.SENDING } });
 
-  const subject = campaign.subject_template;
-  const body = campaign.body_template;
+  // Determine subject and body based on whether it's a follow-up
+  let subject = campaign.subject_template;
+  let body = campaign.body_template;
+  let threadId = lead.lastThreadId || undefined;
+  
+  if (isFollowUp) {
+    subject = `Re: ${campaign.subject_template}`;
+    if (followUpStep === 2 && campaign.follow_up2_body) {
+      body = campaign.follow_up2_body;
+    } else if (followUpStep === 3 && campaign.follow_up3_body) {
+      body = campaign.follow_up3_body;
+    } else if (followUpStep === 4 && campaign.follow_up4_body) {
+      body = campaign.follow_up4_body;
+    }
+  }
 
   let accessToken = campaign.gmail_accounts.access_token_encrypted ? decrypt(campaign.gmail_accounts.access_token_encrypted) : "";
   const refreshToken = decrypt(campaign.gmail_accounts.refresh_token_encrypted);
@@ -127,13 +254,21 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
     from: campaign.gmail_accounts.email,
     to: lead.email,
     subject,
-    body
+    body,
+    threadId: threadId
   });
 
   if (response.ok) {
+    const newSequenceStep = isFollowUp ? followUpStep : 1;
+    logger.info(`✅ Email sent successfully - threadId: ${response.threadId}, step: ${newSequenceStep}`);
     await prisma.leads.update({
       where: { id: lead.id },
-      data: { status: LeadStatus.SENT, sent_at: new Date() }
+      data: { 
+        status: LeadStatus.SENT, 
+        sent_at: new Date(),
+        currentSequenceStep: newSequenceStep,
+        lastThreadId: response.threadId || lead.lastThreadId
+      }
     });
     await prisma.email_logs.create({
       data: {
@@ -146,7 +281,7 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
         body: body,
         status: "sent",
         bounce_status: "pending",
-        sequence_step: 1
+        sequence_step: newSequenceStep
       }
     });
     
@@ -210,13 +345,29 @@ const runLoop = async (): Promise<void> => {
     try {
       const activeCampaigns = await prisma.campaigns.findMany({ 
         where: { status: CampaignStatus.ACTIVE }, 
-        select: { id: true, delay_min_seconds: true, delay_max_seconds: true } 
+        select: { 
+          id: true, 
+          name: true,
+          delay_min_seconds: true, 
+          delay_max_seconds: true,
+          follow_up2_body: true,
+          follow_up2_delay_hours: true,
+          follow_up3_body: true,
+          follow_up3_delay_hours: true,
+          follow_up4_body: true,
+          follow_up4_delay_hours: true
+        } 
       });
       
       if (activeCampaigns.length === 0) {
         await sleep(5000);
         continue;
       }
+      
+      logger.info(`🔄 Processing ${activeCampaigns.length} active campaign(s)`);
+      activeCampaigns.forEach(c => {
+        logger.info(`  - ${c.name} (followup2: ${c.follow_up2_delay_hours}h)`);
+      });
       
       // Shuffle campaigns to randomize which one sends first
       const shuffledCampaigns = shuffleArray(activeCampaigns);

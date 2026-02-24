@@ -95,7 +95,8 @@ export const gmailService = {
     to: string;
     subject: string;
     body: string;
-  }): Promise<{ ok: boolean; statusCode: number; body: string; rateLimited: boolean; unauthorized: boolean }> {
+    threadId?: string;
+  }): Promise<{ ok: boolean; statusCode: number; body: string; rateLimited: boolean; unauthorized: boolean; messageId?: string; threadId?: string }> {
     ensureGmailEnabled();
     const oauth = createOAuth();
     oauth.setCredentials({
@@ -107,13 +108,19 @@ export const gmailService = {
     try {
       const gmail = google.gmail({ version: "v1", auth: oauth });
       const raw = encodeMessage(input.from, input.to, input.subject, input.body);
-      const response = await gmail.users.messages.send({ userId: "me", requestBody: { raw } });
+      const requestBody: any = { raw };
+      if (input.threadId) {
+        requestBody.threadId = input.threadId;
+      }
+      const response = await gmail.users.messages.send({ userId: "me", requestBody });
       return {
         ok: true,
         statusCode: 200,
         body: JSON.stringify(response.data),
         rateLimited: false,
-        unauthorized: false
+        unauthorized: false,
+        messageId: response.data.id,
+        threadId: response.data.threadId
       };
     } catch (error: any) {
       const statusCode = Number(error?.code ?? error?.response?.status ?? 500);

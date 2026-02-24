@@ -258,6 +258,14 @@ export default function CampaignDetailPage() {
                   Resume
                 </button>
               )}
+              {campaign.status === "COMPLETED" && (
+                <button
+                  onClick={() => handleCampaignAction("start")}
+                  className="rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500 transition"
+                >
+                  Resume Campaign
+                </button>
+              )}
               <button
                 onClick={() => handleCampaignAction("delete")}
                 className="rounded bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500 transition"
@@ -374,15 +382,25 @@ export default function CampaignDetailPage() {
             );
           })()}
 
-          {/* Daily Limit & Timing */}
-          <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+          {/* Campaign Configuration */}
+          <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
             <div>
               <div className="text-xs text-slate-400">Daily Limit</div>
               <div className="font-semibold text-slate-200">{campaign.dailyLimit ?? "Not set"} emails/day</div>
             </div>
+            <div>
+              <div className="text-xs text-slate-400">Delay Between Emails</div>
+              <div className="font-semibold text-slate-200">
+                {campaign.delayMinSeconds && campaign.delayMaxSeconds 
+                  ? `${campaign.delayMinSeconds}-${campaign.delayMaxSeconds}s` 
+                  : "Not set"}
+              </div>
+            </div>
             {campaign.startTime && (
               <div>
-                <div className="text-xs text-slate-400">Scheduled Start</div>
+                <div className="text-xs text-slate-400">
+                  {new Date(campaign.startTime) <= new Date() ? "Started At" : "Scheduled Start"}
+                </div>
                 <div className="font-semibold text-slate-200">{new Date(campaign.startTime).toLocaleString()}</div>
               </div>
             )}

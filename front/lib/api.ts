@@ -17,6 +17,8 @@ export interface Campaign {
   startTime?: string | null;
   subjectTemplate?: string;
   bodyTemplate?: string;
+  delayMinSeconds?: number;
+  delayMaxSeconds?: number;
   followUp2Body?: string | null;
   followUp2DelayHours?: number | null;
   followUp3Body?: string | null;
