@@ -86,7 +86,7 @@ export const createRouter = (deps: {
       const campaignId = req.params.campaignId;
       const counts = await deps.campaignRepository.getCounts(campaignId);
       const total = counts.pending + counts.sending + counts.sent + counts.failed;
-      const progress = total === 0 ? 0 : (counts.sent + counts.failed) / total;
+      const progress = total === 0 ? 0 : Math.round(((counts.sent + counts.failed) / total) * 100);
       res.json({ ...counts, total, progress });
     } catch (error) {
       next(error);

@@ -11,51 +11,51 @@ export const gmailAccountService = {
   async connect(userId: string, code: string) {
     const oauthData = await gmailService.exchangeCode(code);
 
-    return prisma.gmailAccount.upsert({
+    return prisma.gmail_accounts.upsert({
       where: {
-        userId_email: {
-          userId,
+        user_id_email: {
+          user_id: userId,
           email: oauthData.email
         }
       },
       update: {
-        refreshTokenEncrypted: encrypt(oauthData.refreshToken),
-        accessTokenEncrypted: encrypt(oauthData.accessToken),
-        accessTokenExpiresAt: oauthData.expiresAt,
+        refresh_token_encrypted: encrypt(oauthData.refreshToken),
+        access_token_encrypted: encrypt(oauthData.accessToken),
+        access_token_expires_at: oauthData.expiresAt,
         status: GmailAccountStatus.ACTIVE
       },
       create: {
-        userId,
+        user_id: userId,
         email: oauthData.email,
-        refreshTokenEncrypted: encrypt(oauthData.refreshToken),
-        accessTokenEncrypted: encrypt(oauthData.accessToken),
-        accessTokenExpiresAt: oauthData.expiresAt,
+        refresh_token_encrypted: encrypt(oauthData.refreshToken),
+        access_token_encrypted: encrypt(oauthData.accessToken),
+        access_token_expires_at: oauthData.expiresAt,
         status: GmailAccountStatus.ACTIVE
       }
     });
   },
 
   async disconnect(userId: string, accountId: string) {
-    await prisma.gmailAccount.updateMany({
-      where: { id: accountId, userId },
+    await prisma.gmail_accounts.updateMany({
+      where: { id: accountId, user_id: userId },
       data: { status: GmailAccountStatus.DISCONNECTED }
     });
   },
 
   async list(userId: string) {
-    return prisma.gmailAccount.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
+    return prisma.gmail_accounts.findMany({ where: { user_id: userId }, orderBy: { created_at: "desc" } });
   },
 
   async getDecryptedCredentials(userId: string, accountId: string) {
-    const account = await prisma.gmailAccount.findFirst({ where: { id: accountId, userId } });
+    const account = await prisma.gmail_accounts.findFirst({ where: { id: accountId, user_id: userId } });
     if (!account) {
       throw new Error("Gmail account not found");
     }
 
     return {
       account,
-      refreshToken: decrypt(account.refreshTokenEncrypted),
-      accessToken: account.accessTokenEncrypted ? decrypt(account.accessTokenEncrypted) : ""
+      refreshToken: decrypt(account.refresh_token_encrypted),
+      accessToken: account.access_token_encrypted ? decrypt(account.access_token_encrypted) : ""
     };
   }
 };

@@ -1,19 +1,21 @@
 import { prisma } from "../lib/prisma";
 import { signAuthToken } from "../lib/auth";
 import { comparePassword, hashPassword } from "../lib/security";
+import { randomUUID } from "crypto";
 
 export const authService = {
   async register(input: { email: string; password: string }) {
-    const existing = await prisma.user.findUnique({ where: { email: input.email } });
+    const existing = await prisma.users.findUnique({ where: { email: input.email } });
     if (existing) {
       throw new Error("Email already in use");
     }
 
-    const passwordHash = await hashPassword(input.password);
-    const user = await prisma.user.create({
+    const password_hash = await hashPassword(input.password);
+    const user = await prisma.users.create({
       data: {
+        id: randomUUID(),
         email: input.email,
-        passwordHash
+        password_hash
       }
     });
 
@@ -22,12 +24,12 @@ export const authService = {
   },
 
   async login(input: { email: string; password: string }) {
-    const user = await prisma.user.findUnique({ where: { email: input.email } });
+    const user = await prisma.users.findUnique({ where: { email: input.email } });
     if (!user) {
       throw new Error("Invalid credentials");
     }
 
-    const isValid = await comparePassword(input.password, user.passwordHash);
+    const isValid = await comparePassword(input.password, user.password_hash);
     if (!isValid) {
       throw new Error("Invalid credentials");
     }

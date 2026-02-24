@@ -14,6 +14,7 @@ export interface Campaign {
   name: string;
   status: "DRAFT" | "ACTIVE" | "PAUSED" | "COMPLETED" | "FAILED";
   dailyLimit: number;
+  startTime?: string | null;
 }
 
 export interface CampaignStats {
@@ -84,7 +85,17 @@ export const api = {
     dailyLimit: number;
     delayMinSeconds: number;
     delayMaxSeconds: number;
-  }) => request("/campaigns", { method: "POST", body: JSON.stringify(payload) }),
+    startTime?: string;
+    followUp2Subject?: string;
+    followUp2Body?: string;
+    followUp2DelayHours?: number;
+    followUp3Subject?: string;
+    followUp3Body?: string;
+    followUp3DelayHours?: number;
+    followUp4Subject?: string;
+    followUp4Body?: string;
+    followUp4DelayHours?: number;
+  }) => request<{ campaign: Campaign }>("/campaigns", { method: "POST", body: JSON.stringify(payload) }),
   campaignAction: (campaignId: string, action: "start" | "pause" | "resume" | "delete") =>
     request("/campaigns/action", { method: "POST", body: JSON.stringify({ campaignId, action }) }),
   uploadLeads: (campaignId: string, csv: string) =>

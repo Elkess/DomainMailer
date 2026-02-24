@@ -3,10 +3,10 @@ import { prisma } from "../lib/prisma";
 export const dashboardService = {
   async getSummary(userId: string) {
     const [campaigns, sentToday, successStats, accountStats] = await Promise.all([
-      prisma.campaign.groupBy({ by: ["status"], where: { userId }, _count: true }),
-      prisma.emailLog.count({ where: { userId, status: "sent", createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } }),
-      prisma.emailLog.groupBy({ by: ["status"], where: { userId }, _count: true }),
-      prisma.gmailAccount.findMany({ where: { userId }, select: { id: true, email: true, status: true } })
+      prisma.campaigns.groupBy({ by: ["status"], where: { user_id: userId }, _count: true }),
+      prisma.email_logs.count({ where: { user_id: userId, status: "sent", created_at: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } }),
+      prisma.email_logs.groupBy({ by: ["status"], where: { user_id: userId }, _count: true }),
+      prisma.gmail_accounts.findMany({ where: { user_id: userId }, select: { id: true, email: true, status: true } })
     ]);
 
     const totalCampaigns = campaigns.reduce((sum, item) => sum + item._count, 0);

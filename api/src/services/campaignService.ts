@@ -7,40 +7,56 @@ export const campaignService = {
     userId: string;
     gmailAccountId: string;
     name: string;
-    subjectTemplate: string;
-    bodyTemplate: string;
-    dailyLimit: number;
-    delayMinSeconds: number;
-    delayMaxSeconds: number;
+    subject_template: string;
+    body_template: string;
+    daily_limit: number;
+    delay_min_seconds: number;
+    delay_max_seconds: number;
     startTime?: Date;
+    followUp2Body?: string;
+    followUp2DelayHours?: number;
+    followUp3Body?: string;
+    followUp3DelayHours?: number;
+    followUp4Body?: string;
+    followUp4DelayHours?: number;
   }) {
-    const account = await prisma.gmailAccount.findFirst({
-      where: { id: input.gmailAccountId, userId: input.userId, status: "ACTIVE" }
+    const account = await prisma.gmail_accounts.findFirst({
+      where: { id: input.gmailAccountId, user_id: input.userId, status: "ACTIVE" }
     });
     if (!account) {
       throw new Error("Selected Gmail account is not available");
     }
 
-    return prisma.campaign.create({
+    // If campaign has a scheduled startTime, set it to ACTIVE immediately
+    // The worker will check if it's time to start sending via isCampaignAllowedNow()
+    const status = input.startTime ? CampaignStatus.ACTIVE : CampaignStatus.DRAFT;
+
+    return prisma.campaigns.create({
       data: {
-        userId: input.userId,
-        gmailAccountId: input.gmailAccountId,
+        user_id: input.userId,
+        gmail_account_id: input.gmailAccountId,
         name: input.name,
-        subjectTemplate: input.subjectTemplate,
-        bodyTemplate: input.bodyTemplate,
-        requiredVariables: [],
-        dailyLimit: input.dailyLimit,
-        delayMinSeconds: input.delayMinSeconds,
-        delayMaxSeconds: input.delayMaxSeconds,
-        startTime: input.startTime,
-        status: CampaignStatus.DRAFT
+        subject_template: input.subjectTemplate,
+        body_template: input.bodyTemplate,
+        required_variables: [],
+        daily_limit: input.dailyLimit,
+        delay_min_seconds: input.delayMinSeconds,
+        delay_max_seconds: input.delayMaxSeconds,
+        start_time: input.startTime,
+        follow_up2_body: input.followUp2Body,
+        follow_up2_delay_hours: input.followUp2DelayHours,
+        follow_up3_body: input.followUp3Body,
+        follow_up3_delay_hours: input.followUp3DelayHours,
+        follow_up4_body: input.followUp4Body,
+        follow_up4_delay_hours: input.followUp4DelayHours,
+        status
       }
     });
   },
 
   async listCampaigns(userId: string) {
-    return prisma.campaign.findMany({
-      where: { userId },
+    return prisma.campaigns.findMany({
+      where: { user_id: userId },
       include: {
         _count: {
           select: {
@@ -48,34 +64,34 @@ export const campaignService = {
           }
         }
       },
-      orderBy: { createdAt: "desc" }
+      orderBy: { created_at: "desc" }
     });
   },
 
   async updateStatus(input: { userId: string; campaignId: string; action: "start" | "pause" | "resume" | "delete" }) {
-    const campaign = await prisma.campaign.findFirst({ where: { id: input.campaignId, userId: input.userId } });
+    const campaign = await prisma.campaigns.findFirst({ where: { id: input.campaignId, user_id: input.userId } });
     if (!campaign) {
       throw new Error("Campaign not found");
     }
 
     if (input.action === "delete") {
-      await prisma.campaign.delete({ where: { id: campaign.id } });
+      await prisma.campaigns.delete({ where: { id: campaign.id } });
       return;
     }
 
     const status = input.action === "pause" ? CampaignStatus.PAUSED : CampaignStatus.ACTIVE;
-    await prisma.campaign.update({ where: { id: campaign.id }, data: { status } });
+    await prisma.campaigns.update({ where: { id: campaign.id }, data: { status } });
   },
 
   async uploadLeads(input: { userId: string; campaignId: string; csv: string }) {
-    const campaign = await prisma.campaign.findFirst({ where: { id: input.campaignId, userId: input.userId } });
+    const campaign = await prisma.campaigns.findFirst({ where: { id: input.campaignId, user_id: input.userId } });
     if (!campaign) {
       throw new Error("Campaign not found");
     }
 
     const leads = dedupeLeadsByEmail(parseLeadCsv(input.csv));
-    const existingLeads = await prisma.lead.findMany({
-      where: { campaignId: input.campaignId, userId: input.userId },
+    const existingLeads = await prisma.leads.findMany({
+      where: { campaign_id: input.campaignId, user_id: input.userId },
       select: { email: true }
     });
     const existingEmails = new Set(existingLeads.map((lead) => lead.email.trim().toLowerCase()));
@@ -89,10 +105,10 @@ export const campaignService = {
     });
 
     if (leadsToInsert.length > 0) {
-      await prisma.lead.createMany({
+      await prisma.leads.createMany({
         data: leadsToInsert.map((lead) => ({
           userId: input.userId,
-          campaignId: input.campaignId,
+          campaign_id: input.campaignId,
           companyName: lead.companyName,
           domainName: lead.domainName,
           firstName: lead.firstName,
@@ -107,19 +123,20 @@ export const campaignService = {
   },
 
   async previewTemplate(input: { userId: string; campaignId: string; leadId: string }) {
-    const campaign = await prisma.campaign.findFirst({ where: { id: input.campaignId, userId: input.userId } });
+    const campaign = await prisma.campaigns.findFirst({ where: { id: input.campaignId, user_id: input.userId } });
     if (!campaign) {
       throw new Error("Campaign not found");
     }
 
-    const lead = await prisma.lead.findFirst({ where: { id: input.leadId, userId: input.userId, campaignId: input.campaignId } });
+    const lead = await prisma.leads.findFirst({ where: { id: input.leadId, user_id: input.userId, campaign_id: input.campaignId } });
     if (!lead) {
       throw new Error("Lead not found");
     }
 
     return {
-      subject: campaign.subjectTemplate,
-      body: campaign.bodyTemplate
+      subject: campaign.subject_template,
+      body: campaign.body_template
     };
   }
 };
+

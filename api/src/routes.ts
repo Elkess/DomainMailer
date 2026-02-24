@@ -26,7 +26,14 @@ const createCampaignSchema = z.object({
   dailyLimit: z.number().int().positive(),
   delayMinSeconds: z.number().int().min(0),
   delayMaxSeconds: z.number().int().min(0),
-  startTime: z.string().datetime().optional()
+  startTime: z.string().datetime().optional(),
+  // Follow-up messages (will use "Re: [original subject]" for threading)
+  followUp2Body: z.string().optional(),
+  followUp2DelayHours: z.number().int().positive().optional(),
+  followUp3Body: z.string().optional(),
+  followUp3DelayHours: z.number().int().positive().optional(),
+  followUp4Body: z.string().optional(),
+  followUp4DelayHours: z.number().int().positive().optional()
 });
 
 const campaignActionSchema = z.object({
@@ -86,12 +93,12 @@ export const createRoutes = () => {
   router.post("/auth/register", async (req, res) => {
     const input = parse(registerSchema, req.body);
     const output = await authService.register(input);
-    await prisma.auditLog.create({
+    await prisma.audit_logs.create({
       data: {
-        userId: output.user.id,
+        user_id: output.user.id,
         action: "auth.register",
         resource: "user",
-        resourceId: output.user.id
+        resource_id: output.user.id
       }
     });
     res.cookie("token", output.token, { httpOnly: true, sameSite: "lax" });
@@ -101,12 +108,12 @@ export const createRoutes = () => {
   router.post("/auth/login", async (req, res) => {
     const input = parse(loginSchema, req.body);
     const output = await authService.login(input);
-    await prisma.auditLog.create({
+    await prisma.audit_logs.create({
       data: {
-        userId: output.user.id,
+        user_id: output.user.id,
         action: "auth.login",
         resource: "user",
-        resourceId: output.user.id
+        resource_id: output.user.id
       }
     });
     res.cookie("token", output.token, { httpOnly: true, sameSite: "lax" });
@@ -137,8 +144,8 @@ export const createRoutes = () => {
     res.write(`data: ${JSON.stringify({ type: "connected" })}\n\n`);
 
     // Handler for campaign updates (in-memory, same process)
-    const updateHandler = (event: { campaignId: string; userId: string; timestamp: number }) => {
-      if (event.userId === userId) {
+    const updateHandler = (event: { campaignId: string; user_id: string; timestamp: number }) => {
+      if (event.user_id === userId) {
         console.log(`📤 Sending SSE update (in-memory) to userId=${userId}, campaignId=${event.campaignId}`);
         res.write(`data: ${JSON.stringify({ 
           type: "campaign:update", 
@@ -156,7 +163,7 @@ export const createRoutes = () => {
       try {
         const updates = await campaignEvents.pollForUpdates();
         for (const event of updates) {
-          if (event.userId === userId) {
+          if (event.user_id === userId) {
             console.log(`📤 Sending SSE update (from DB) to userId=${userId}, campaignId=${event.campaignId}`);
             res.write(`data: ${JSON.stringify({ 
               type: "campaign:update", 
@@ -203,12 +210,12 @@ export const createRoutes = () => {
   router.post("/gmail/connect", requireAuth, async (req, res) => {
     const input = parse(gmailConnectSchema, req.body);
     const account = await gmailAccountService.connect(req.user.userId, input.code);
-    await prisma.auditLog.create({
+    await prisma.audit_logs.create({
       data: {
-        userId: req.user.userId,
+        user_id: req.user.userId,
         action: "gmail.connect",
         resource: "gmail_account",
-        resourceId: account.id
+        resource_id: account.id
       }
     });
     res.status(201).json({ account });
@@ -217,12 +224,12 @@ export const createRoutes = () => {
   router.post("/gmail/disconnect", requireAuth, async (req, res) => {
     const input = parse(gmailDisconnectSchema, req.body);
     await gmailAccountService.disconnect(req.user.userId, input.accountId);
-    await prisma.auditLog.create({
+    await prisma.audit_logs.create({
       data: {
-        userId: req.user.userId,
+        user_id: req.user.userId,
         action: "gmail.disconnect",
         resource: "gmail_account",
-        resourceId: input.accountId
+        resource_id: input.accountId
       }
     });
     res.json({ ok: true });
@@ -244,14 +251,20 @@ export const createRoutes = () => {
       dailyLimit: input.dailyLimit,
       delayMinSeconds: input.delayMinSeconds,
       delayMaxSeconds: input.delayMaxSeconds,
-      startTime: input.startTime ? new Date(input.startTime) : undefined
+      startTime: input.startTime ? new Date(input.startTime) : undefined,
+      followUp2Body: input.followUp2Body,
+      followUp2DelayHours: input.followUp2DelayHours,
+      followUp3Body: input.followUp3Body,
+      followUp3DelayHours: input.followUp3DelayHours,
+      followUp4Body: input.followUp4Body,
+      followUp4DelayHours: input.followUp4DelayHours
     });
-    await prisma.auditLog.create({
+    await prisma.audit_logs.create({
       data: {
-        userId: req.user.userId,
+        user_id: req.user.userId,
         action: "campaign.create",
         resource: "campaign",
-        resourceId: campaign.id
+        resource_id: campaign.id
       }
     });
     res.status(201).json({ campaign });
@@ -265,12 +278,12 @@ export const createRoutes = () => {
   router.post("/campaigns/action", requireAuth, async (req, res) => {
     const input = parse(campaignActionSchema, req.body);
     await campaignService.updateStatus({ userId: req.user.userId, campaignId: input.campaignId, action: input.action });
-    await prisma.auditLog.create({
+    await prisma.audit_logs.create({
       data: {
-        userId: req.user.userId,
+        user_id: req.user.userId,
         action: `campaign.${input.action}`,
         resource: "campaign",
-        resourceId: input.campaignId
+        resource_id: input.campaignId
       }
     });
     res.json({ ok: true });
@@ -283,12 +296,12 @@ export const createRoutes = () => {
       campaignId: input.campaignId,
       csv: input.csv
     });
-    await prisma.auditLog.create({
+    await prisma.audit_logs.create({
       data: {
-        userId: req.user.userId,
+        user_id: req.user.userId,
         action: "leads.upload_csv",
         resource: "campaign",
-        resourceId: input.campaignId,
+        resource_id: input.campaignId,
         metadata: {
           inserted: result.inserted
         }
@@ -298,8 +311,8 @@ export const createRoutes = () => {
   });
   router.post("/leads/add", requireAuth, async (req, res) => {
     const input = parse(addLeadSchema, req.body);
-    const campaign = await prisma.campaign.findFirst({ 
-      where: { id: input.campaignId, userId: req.user.userId } 
+    const campaign = await prisma.campaigns.findFirst({ 
+      where: { id: input.campaignId, user_id: req.user.userId } 
     });
     if (!campaign) {
       res.status(404).json({ error: "Campaign not found" });
@@ -329,34 +342,34 @@ export const createRoutes = () => {
     const createdLeads = [];
     for (const email of emailList) {
       // Check if lead already exists
-      const existingLead = await prisma.lead.findFirst({
+      const existingLead = await prisma.leads.findFirst({
         where: {
-          campaignId: input.campaignId,
+          campaign_id: input.campaignId,
           email: email.toLowerCase()
         }
       });
 
       if (!existingLead) {
-        const lead = await prisma.lead.create({
+        const lead = await prisma.leads.create({
           data: {
-            userId: req.user.userId,
-            campaignId: input.campaignId,
+            user_id: req.user.userId,
+            campaign_id: input.campaignId,
             email: email.toLowerCase(),
-            firstName: "",
-            companyName: "",
-            domainName: "",
-            customFields: {},
+            first_name: "",
+            company_name: "",
+            domain_name: "",
+            custom_fields: {},
             status: "PENDING"
           }
         });
         createdLeads.push(lead);
 
-        await prisma.auditLog.create({
+        await prisma.audit_logs.create({
           data: {
-            userId: req.user.userId,
+            user_id: req.user.userId,
             action: "leads.add_manual",
             resource: "lead",
-            resourceId: lead.id,
+            resource_id: lead.id,
             metadata: { campaignId: input.campaignId }
           }
         });
@@ -374,8 +387,8 @@ export const createRoutes = () => {
   router.post("/leads/delete", requireAuth, async (req, res) => {
     const input = parse(deleteLeadSchema, req.body);
 
-    const lead = await prisma.lead.findFirst({
-      where: { id: input.leadId, userId: req.user.userId }
+    const lead = await prisma.leads.findFirst({
+      where: { id: input.leadId, user_id: req.user.userId }
     });
 
     if (!lead) {
@@ -383,20 +396,20 @@ export const createRoutes = () => {
       return;
     }
 
-    if (lead.sentAt || lead.status === "SENT" || lead.status === "SENDING") {
+    if (lead.sent_at || lead.status === "SENT" || lead.status === "SENDING") {
       res.status(400).json({ error: "Cannot delete this lead because the email has already been sent or is currently sending" });
       return;
     }
 
-    await prisma.lead.delete({ where: { id: lead.id } });
+    await prisma.leads.delete({ where: { id: lead.id } });
 
-    await prisma.auditLog.create({
+    await prisma.audit_logs.create({
       data: {
-        userId: req.user.userId,
+        user_id: req.user.userId,
         action: "leads.delete",
         resource: "lead",
-        resourceId: lead.id,
-        metadata: { campaignId: lead.campaignId, email: lead.email }
+        resource_id: lead.id,
+        metadata: { campaignId: lead.campaign_id, email: lead.email }
       }
     });
 
@@ -406,16 +419,16 @@ export const createRoutes = () => {
   router.post("/leads/import-google-sheet", requireAuth, async (req, res) => {
     const input = parse(importGoogleSheetSchema, req.body);
     
-    const campaign = await prisma.campaign.findFirst({
-      where: { id: input.campaignId, userId: req.user.userId }
+    const campaign = await prisma.campaigns.findFirst({
+      where: { id: input.campaignId, user_id: req.user.userId }
     });
     if (!campaign) {
       res.status(404).json({ error: "Campaign not found" });
       return;
     }
 
-    const gmailAccount = await prisma.gmailAccount.findFirst({
-      where: { id: input.gmailAccountId, userId: req.user.userId }
+    const gmailAccount = await prisma.gmail_accounts.findFirst({
+      where: { id: input.gmailAccountId, user_id: req.user.userId }
     });
     if (!gmailAccount) {
       res.status(404).json({ error: "Gmail account not found" });
@@ -428,8 +441,8 @@ export const createRoutes = () => {
       const rows = await googleSheetsService.readSheet(input.gmailAccountId, spreadsheetId, range);
       
       const leads = dedupeLeadsByEmail(parseSheetData(rows));
-      const existingLeads = await prisma.lead.findMany({
-        where: { campaignId: input.campaignId, userId: req.user.userId },
+      const existingLeads = await prisma.leads.findMany({
+        where: { campaign_id: input.campaignId, user_id: req.user.userId },
         select: { email: true }
       });
       const existingEmails = new Set(existingLeads.map((lead) => lead.email.trim().toLowerCase()));
@@ -443,26 +456,26 @@ export const createRoutes = () => {
       });
 
       const inserted = leadsToInsert.length > 0
-        ? await prisma.lead.createMany({
+        ? await prisma.leads.createMany({
           data: leadsToInsert.map((lead) => ({
-            userId: req.user.userId,
-            campaignId: input.campaignId,
+            user_id: req.user.userId,
+            campaign_id: input.campaignId,
             email: lead.email,
-            firstName: lead.firstName,
-            companyName: lead.companyName,
-            domainName: lead.domainName,
-            customFields: lead.customFields,
+            first_name: lead.firstName,
+            company_name: lead.companyName,
+            domain_name: lead.domainName,
+            custom_fields: lead.customFields,
             status: "PENDING" as const
           }))
         })
         : { count: 0 };
 
-      await prisma.auditLog.create({
+      await prisma.audit_logs.create({
         data: {
-          userId: req.user.userId,
+          user_id: req.user.userId,
           action: "leads.import_google_sheet",
           resource: "campaign",
-          resourceId: input.campaignId,
+          resource_id: input.campaignId,
           metadata: {
             inserted: inserted.count,
             spreadsheetId
@@ -478,24 +491,24 @@ export const createRoutes = () => {
 
   router.get("/campaigns/:campaignId/leads", requireAuth, async (req, res) => {
     const campaignId = String(req.params.campaignId ?? "");
-    const campaign = await prisma.campaign.findFirst({
-      where: { id: campaignId, userId: req.user.userId }
+    const campaign = await prisma.campaigns.findFirst({
+      where: { id: campaignId, user_id: req.user.userId }
     });
     if (!campaign) {
       res.status(404).json({ error: "Campaign not found" });
       return;
     }
 
-    const leads = await prisma.lead.findMany({
-      where: { campaignId: campaignId },
+    const leads = await prisma.leads.findMany({
+      where: { campaign_id: campaignId },
       select: {
         id: true,
         email: true,
         status: true,
-        sentAt: true,
-        createdAt: true
+        sent_at: true,
+        created_at: true
       },
-      orderBy: { createdAt: "desc" }
+      orderBy: { created_at: "desc" }
     });
 
     res.json({ leads });
@@ -518,8 +531,8 @@ export const createRoutes = () => {
 
   router.get("/campaigns/:campaignId/stats", requireAuth, async (req, res) => {
     const campaignId = String(req.params.campaignId ?? "");
-    const campaign = await prisma.campaign.findFirst({
-      where: { id: campaignId, userId: req.user.userId },
+    const campaign = await prisma.campaigns.findFirst({
+      where: { id: campaignId, user_id: req.user.userId },
       include: {
         leads: {
           select: {
@@ -545,9 +558,10 @@ export const createRoutes = () => {
     const sent = counts.SENT ?? 0;
     const failed = counts.FAILED ?? 0;
     const total = pending + sent + failed;
-    const progress = total === 0 ? 0 : (sent + failed) / total;
+    const progress = total === 0 ? 0 : Math.round(((sent + failed) / total) * 100);
     res.json({ pending, sent, failed, total, progress, status: campaign.status });
   });
 
   return router;
 };
+

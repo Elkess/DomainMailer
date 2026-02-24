@@ -4,7 +4,7 @@ import { decrypt } from "../lib/security";
 
 export const googleSheetsService = {
   async readSheet(accountId: string, spreadsheetId: string, range: string = "Sheet1!A:A"): Promise<string[][]> {
-    const account = await prisma.gmailAccount.findUnique({
+    const account = await prisma.gmail_accounts.findUnique({
       where: { id: accountId },
       select: { refreshTokenEncrypted: true, email: true }
     });

@@ -9,5 +9,19 @@ if (typeof rawDatabaseUrl === 'string') {
 }
 
 const globalForPrisma = global as unknown as { prisma?: PrismaClient };
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
+let prismaInstance: PrismaClient;
+try {
+	prismaInstance = globalForPrisma.prisma ?? new PrismaClient({
+		log: ['error', 'warn'],
+	});
+	if (process.env.NODE_ENV !== 'production') {
+		globalForPrisma.prisma = prismaInstance;
+	}
+	console.log('✅ Prisma Client initialized successfully');
+} catch (error) {
+	console.error('❌ Failed to initialize Prisma Client:', error);
+	throw error;
+}
+
+export const prisma = prismaInstance;

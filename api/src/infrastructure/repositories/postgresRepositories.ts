@@ -376,7 +376,8 @@ export class PostgresLeadRepository implements LeadRepository {
            next_retry_at = NOW() + interval '5 minutes',
            updated_at = NOW()
        WHERE status = 'sending'
-         AND last_attempt_at <= NOW() - interval '15 minutes'`
+         AND last_attempt_at <= NOW() - interval '
+          minutes'`
     );
     return result.rowCount ?? 0;
   }
