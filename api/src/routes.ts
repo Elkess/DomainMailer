@@ -514,7 +514,25 @@ export const createRoutes = () => {
       orderBy: { created_at: "desc" }
     });
 
-    res.json({ leads });
+    // Get the current sequence step for each lead from email_logs
+    const leadsWithSequence = await Promise.all(
+      leads.map(async (lead) => {
+        const lastEmail = await prisma.email_logs.findFirst({
+          where: {
+            lead_id: lead.id,
+            status: 'sent'
+          },
+          orderBy: { created_at: 'desc' },
+          select: { sequence_step: true }
+        });
+        return {
+          ...lead,
+          currentSequenceStep: lastEmail?.sequence_step || 0
+        };
+      })
+    );
+
+    res.json({ leads: leadsWithSequence });
   });
 
   router.post("/templates/preview", requireAuth, async (req, res) => {
@@ -562,7 +580,31 @@ export const createRoutes = () => {
     const sent = counts['SENT'] ?? 0;
     const failed = counts['FAILED'] ?? 0;
     const total = pending + sent + failed;
-    const progress = total === 0 ? 0 : Math.round(((sent + failed) / total) * 100);
+    
+    // Calculate progress including followups
+    let progress = 0;
+    if (total > 0) {
+      // Count number of configured followup sequences
+      const followupCount = [
+        campaign.follow_up2_body,
+        campaign.follow_up3_body,
+        campaign.follow_up4_body
+      ].filter(body => body && body.trim().length > 0).length;
+      
+      // Total expected emails = leads * (1 initial + followups)
+      const totalExpectedEmails = total * (1 + followupCount);
+      
+      // Count actual sent emails from email_logs
+      const sentEmailCount = await prisma.email_logs.count({
+        where: {
+          campaign_id: campaignId,
+          status: 'sent'
+        }
+      });
+      
+      progress = Math.round((sentEmailCount / totalExpectedEmails) * 100);
+    }
+    
     res.json({ pending, sent, failed, total, progress, status: campaign.status });
   });
 

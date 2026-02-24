@@ -145,7 +145,8 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
         subject: subject,
         body: body,
         status: "sent",
-        bounce_status: "pending"
+        bounce_status: "pending",
+        sequence_step: 1
       }
     });
     

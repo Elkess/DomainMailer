@@ -9,7 +9,7 @@ export const requireUser = (req: Request, res: Response, next: NextFunction): vo
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  req.user = { id: userId };
+  req.user = { id: userId, userId: userId, email: "" };
   next();
 };
 

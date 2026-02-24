@@ -18,7 +18,7 @@ export default function CampaignDetailPage() {
   
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [stats, setStats] = useState<CampaignStats | null>(null);
-  const [leads, setLeads] = useState<Array<{ id: string; email: string; status: string; sentAt: string | null; createdAt: string }>>([]);
+  const [leads, setLeads] = useState<Array<{ id: string; email: string; status: string; sentAt: string | null; createdAt: string; currentSequenceStep?: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [error, setError] = useState("");
@@ -262,8 +262,15 @@ export default function CampaignDetailPage() {
                     key={lead.id}
                     className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 p-3"
                   >
-                    <div>
-                      <div className="font-medium text-slate-200">{lead.email}</div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className="font-medium text-slate-200">{lead.email}</div>
+                        {lead.currentSequenceStep && lead.currentSequenceStep > 0 && (
+                          <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-[10px] font-semibold text-sky-400">
+                            Email {lead.currentSequenceStep}/4
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-slate-400">
                         {lead.status} {lead.sentAt && `• Sent ${new Date(lead.sentAt).toLocaleString()}`}
                       </div>
