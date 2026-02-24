@@ -1,4 +1,5 @@
 import { CampaignStatus, LeadStatus, Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { prisma } from "../lib/prisma";
 import { dedupeLeadsByEmail, parseLeadCsv } from "../lib/csv";
 
@@ -13,12 +14,12 @@ export const campaignService = {
     delay_min_seconds: number;
     delay_max_seconds: number;
     startTime?: Date;
-    followUp2Body?: string;
-    followUp2DelayHours?: number;
-    followUp3Body?: string;
-    followUp3DelayHours?: number;
-    followUp4Body?: string;
-    followUp4DelayHours?: number;
+    follow_up2_body?: string;
+    follow_up2_delay_hours?: number;
+    follow_up3_body?: string;
+    follow_up3_delay_hours?: number;
+    follow_up4_body?: string;
+    follow_up4_delay_hours?: number;
   }) {
     const account = await prisma.gmail_accounts.findFirst({
       where: { id: input.gmailAccountId, user_id: input.userId, status: "ACTIVE" }
@@ -33,22 +34,23 @@ export const campaignService = {
 
     return prisma.campaigns.create({
       data: {
+        id: randomUUID(),
         user_id: input.userId,
         gmail_account_id: input.gmailAccountId,
         name: input.name,
-        subject_template: input.subjectTemplate,
-        body_template: input.bodyTemplate,
+        subject_template: input.subject_template,
+        body_template: input.body_template,
         required_variables: [],
-        daily_limit: input.dailyLimit,
-        delay_min_seconds: input.delayMinSeconds,
-        delay_max_seconds: input.delayMaxSeconds,
+        daily_limit: input.daily_limit,
+        delay_min_seconds: input.delay_min_seconds,
+        delay_max_seconds: input.delay_max_seconds,
         start_time: input.startTime,
-        follow_up2_body: input.followUp2Body,
-        follow_up2_delay_hours: input.followUp2DelayHours,
-        follow_up3_body: input.followUp3Body,
-        follow_up3_delay_hours: input.followUp3DelayHours,
-        follow_up4_body: input.followUp4Body,
-        follow_up4_delay_hours: input.followUp4DelayHours,
+        follow_up2_body: input.follow_up2_body,
+        follow_up2_delay_hours: input.follow_up2_delay_hours,
+        follow_up3_body: input.follow_up3_body,
+        follow_up3_delay_hours: input.follow_up3_delay_hours,
+        follow_up4_body: input.follow_up4_body,
+        follow_up4_delay_hours: input.follow_up4_delay_hours,
         status
       }
     });
@@ -107,13 +109,14 @@ export const campaignService = {
     if (leadsToInsert.length > 0) {
       await prisma.leads.createMany({
         data: leadsToInsert.map((lead) => ({
-          userId: input.userId,
+          id: randomUUID(),
+          user_id: input.userId,
           campaign_id: input.campaignId,
-          companyName: lead.companyName,
-          domainName: lead.domainName,
-          firstName: lead.firstName,
+          company_name: lead.companyName,
+          domain_name: lead.domainName,
+          first_name: lead.firstName,
           email: lead.email,
-          customFields: lead.customFields,
+          custom_fields: lead.customFields,
           status: LeadStatus.PENDING
         }))
       });

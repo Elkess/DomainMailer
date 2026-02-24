@@ -10,21 +10,31 @@ export const gmailAccountService = {
 
   async connect(userId: string, code: string) {
     const oauthData = await gmailService.exchangeCode(code);
+    const { randomUUID } = await import("crypto");
 
-    return prisma.gmail_accounts.upsert({
+    // Check if account already exists
+    const existing = await prisma.gmail_accounts.findFirst({
       where: {
-        user_id_email: {
-          user_id: userId,
-          email: oauthData.email
+        user_id: userId,
+        email: oauthData.email
+      }
+    });
+
+    if (existing) {
+      return prisma.gmail_accounts.update({
+        where: { id: existing.id },
+        data: {
+          refresh_token_encrypted: encrypt(oauthData.refreshToken),
+          access_token_encrypted: encrypt(oauthData.accessToken),
+          access_token_expires_at: oauthData.expiresAt,
+          status: GmailAccountStatus.ACTIVE
         }
-      },
-      update: {
-        refresh_token_encrypted: encrypt(oauthData.refreshToken),
-        access_token_encrypted: encrypt(oauthData.accessToken),
-        access_token_expires_at: oauthData.expiresAt,
-        status: GmailAccountStatus.ACTIVE
-      },
-      create: {
+      });
+    }
+
+    return prisma.gmail_accounts.create({
+      data: {
+        id: randomUUID(),
         user_id: userId,
         email: oauthData.email,
         refresh_token_encrypted: encrypt(oauthData.refreshToken),
@@ -38,7 +48,7 @@ export const gmailAccountService = {
   async disconnect(userId: string, accountId: string) {
     await prisma.gmail_accounts.updateMany({
       where: { id: accountId, user_id: userId },
-      data: { status: GmailAccountStatus.DISCONNECTED }
+      data: { status: GmailAccountStatus.ERROR }
     });
   },
 

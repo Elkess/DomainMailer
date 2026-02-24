@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { randomUUID } from "crypto";
 import { requireAuth } from "./lib/auth";
 import { env } from "./config/env";
 import { authService } from "./services/authService";
@@ -246,18 +247,18 @@ export const createRoutes = () => {
       userId: req.user.userId,
       gmailAccountId: input.gmailAccountId,
       name: input.name,
-      subjectTemplate: input.subjectTemplate,
-      bodyTemplate: input.bodyTemplate,
-      dailyLimit: input.dailyLimit,
-      delayMinSeconds: input.delayMinSeconds,
-      delayMaxSeconds: input.delayMaxSeconds,
+      subject_template: input.subjectTemplate,
+      body_template: input.bodyTemplate,
+      daily_limit: input.dailyLimit,
+      delay_min_seconds: input.delayMinSeconds,
+      delay_max_seconds: input.delayMaxSeconds,
       startTime: input.startTime ? new Date(input.startTime) : undefined,
-      followUp2Body: input.followUp2Body,
-      followUp2DelayHours: input.followUp2DelayHours,
-      followUp3Body: input.followUp3Body,
-      followUp3DelayHours: input.followUp3DelayHours,
-      followUp4Body: input.followUp4Body,
-      followUp4DelayHours: input.followUp4DelayHours
+      follow_up2_body: input.followUp2Body,
+      follow_up2_delay_hours: input.followUp2DelayHours,
+      follow_up3_body: input.followUp3Body,
+      follow_up3_delay_hours: input.followUp3DelayHours,
+      follow_up4_body: input.followUp4Body,
+      follow_up4_delay_hours: input.followUp4DelayHours
     });
     await prisma.audit_logs.create({
       data: {
@@ -352,6 +353,7 @@ export const createRoutes = () => {
       if (!existingLead) {
         const lead = await prisma.leads.create({
           data: {
+            id: randomUUID(),
             user_id: req.user.userId,
             campaign_id: input.campaignId,
             email: email.toLowerCase(),
@@ -458,6 +460,7 @@ export const createRoutes = () => {
       const inserted = leadsToInsert.length > 0
         ? await prisma.leads.createMany({
           data: leadsToInsert.map((lead) => ({
+            id: randomUUID(),
             user_id: req.user.userId,
             campaign_id: input.campaignId,
             email: lead.email,
@@ -547,16 +550,17 @@ export const createRoutes = () => {
     }
 
     const counts = campaign.leads.reduce<Record<string, number>>(
-      (acc, lead: { status: string }) => {
-        acc[lead.status] = (acc[lead.status] ?? 0) + 1;
+      (acc, lead) => {
+        const status = lead.status || 'UNKNOWN';
+        acc[status] = (acc[status] ?? 0) + 1;
         return acc;
       },
       {}
     );
 
-    const pending = (counts.PENDING ?? 0) + (counts.QUEUED ?? 0) + (counts.SENDING ?? 0);
-    const sent = counts.SENT ?? 0;
-    const failed = counts.FAILED ?? 0;
+    const pending = (counts['PENDING'] ?? 0) + (counts['QUEUED'] ?? 0) + (counts['SENDING'] ?? 0);
+    const sent = counts['SENT'] ?? 0;
+    const failed = counts['FAILED'] ?? 0;
     const total = pending + sent + failed;
     const progress = total === 0 ? 0 : Math.round(((sent + failed) / total) * 100);
     res.json({ pending, sent, failed, total, progress, status: campaign.status });

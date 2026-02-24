@@ -3,7 +3,7 @@ import { prisma } from "./prisma";
 
 interface CampaignUpdateEvent {
   campaignId: string;
-  userId: string;
+  user_id: string;
   timestamp: number;
 }
 
@@ -13,7 +13,7 @@ class CampaignEventEmitter extends EventEmitter {
   async emitCampaignUpdate(campaignId: string, userId: string) {
     const event: CampaignUpdateEvent = {
       campaignId,
-      userId,
+      user_id: userId,
       timestamp: Date.now()
     };
     
@@ -67,7 +67,7 @@ class CampaignEventEmitter extends EventEmitter {
 
       return notifications.map(n => ({
         campaignId: n.campaignId,
-        userId: n.userId,
+        user_id: n.userId,
         timestamp: Number(n.timestamp)
       }));
     } catch (err) {

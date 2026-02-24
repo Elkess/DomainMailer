@@ -1,4 +1,5 @@
 import { CampaignStatus, GmailAccountStatus, LeadStatus, Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { env } from "../config/env";
 import { logger } from "../lib/logger";
 import { prisma } from "../lib/prisma";
@@ -16,71 +17,58 @@ const randomDelayMs = (minSeconds: number, maxSeconds: number): number => {
   return (Math.floor(Math.random() * (max - min + 1)) + min) * 1000;
 };;
 
-const retryDelayMs = (attemptCount: number): number => {
-  const seconds = Math.min(3600, Math.pow(2, Math.max(1, attemptCount)));
-  return seconds * 1000;
-};
-
-const canRetry = (lead: { attemptCount: number; lastAttemptAt: Date | null }): boolean => {
-  if (!lead.lastAttemptAt) {
+const isCampaignAllowedNow = (campaign: { start_time: Date | null }): boolean => {
+  if (!campaign.start_time) {
     return true;
   }
-  const nextAt = lead.lastAttemptAt.getTime() + retryDelayMs(lead.attemptCount);
-  return Date.now() >= nextAt;
+  return campaign.start_time.getTime() <= Date.now();
 };
 
-const isCampaignAllowedNow = (campaign: { startTime: Date | null }): boolean => {
-  if (!campaign.startTime) {
-    return true;
-  }
-  return campaign.startTime.getTime() <= Date.now();
-};
-
-const getRemainingSlots = async (campaign: { id: string; userId: string; dailyLimit: number }) => {
+const getRemainingSlots = async (campaign: { id: string; user_id: string; daily_limit: number }) => {
   const [campaignSentToday, userSentToday, globalSentToday, minuteSent] = await Promise.all([
-    prisma.email_logs.count({ where: { campaignId: campaign.id, status: "sent", createdAt: { gte: nowStartOfDay() } } }),
-    prisma.email_logs.count({ where: { userId: campaign.userId, status: "sent", createdAt: { gte: nowStartOfDay() } } }),
-    prisma.email_logs.count({ where: { status: "sent", createdAt: { gte: nowStartOfDay() } } }),
-    prisma.email_logs.count({ where: { status: "sent", createdAt: { gte: oneMinuteAgo() } } })
+    prisma.email_logs.count({ where: { campaign_id: campaign.id, status: "sent", created_at: { gte: nowStartOfDay() } } }),
+    prisma.email_logs.count({ where: { user_id: campaign.user_id, status: "sent", created_at: { gte: nowStartOfDay() } } }),
+    prisma.email_logs.count({ where: { status: "sent", created_at: { gte: nowStartOfDay() } } }),
+    prisma.email_logs.count({ where: { status: "sent", created_at: { gte: oneMinuteAgo() } } })
   ]);
 
-  const campaignRemaining = Math.max(0, campaign.dailyLimit - campaignSentToday);
+  const campaignRemaining = Math.max(0, campaign.daily_limit - campaignSentToday);
   const userRemaining = Math.max(0, env.USER_DAILY_MAX_LIMIT - userSentToday);
   const globalRemaining = Math.max(0, env.GLOBAL_DAILY_MAX_LIMIT - globalSentToday);
   const minuteRemaining = Math.max(0, env.PER_MINUTE_MAX_SEND - minuteSent);
   return Math.min(campaignRemaining, userRemaining, globalRemaining, minuteRemaining);
 };
 
-const pickNextLead = async (campaign: { id: string; userId: string }) => {
+const pickNextLead = async (campaign: { id: string; user_id: string }) => {
   const pending = await prisma.leads.findFirst({
-    where: { campaignId: campaign.id, userId: campaign.userId, status: LeadStatus.PENDING },
-    orderBy: { createdAt: "asc" }
+    where: { campaign_id: campaign.id, user_id: campaign.user_id, status: LeadStatus.PENDING },
+    orderBy: { created_at: "asc" }
   });
   if (pending) {
     return pending;
   }
 
-  const failed = await prisma.leads.findMany({
-    where: { campaignId: campaign.id, userId: campaign.userId, status: LeadStatus.FAILED },
-    orderBy: { lastAttemptAt: "asc" },
-    take: 10
+  // Retry failed leads
+  const failed = await prisma.leads.findFirst({
+    where: { campaign_id: campaign.id, user_id: campaign.user_id, status: LeadStatus.FAILED },
+    orderBy: { created_at: "asc" }
   });
 
-  return failed.find((lead) => canRetry(lead)) ?? null;
+  return failed ?? null;
 };
 
 const processSingleLead = async (campaignId: string): Promise<void> => {
   const campaign = await prisma.campaigns.findFirst({
     where: { id: campaignId, status: CampaignStatus.ACTIVE },
-    include: { gmailAccount: true }
+    include: { gmail_accounts: true }
   });
 
   if (!campaign || !isCampaignAllowedNow(campaign)) {
     return;
   }
 
-  if (campaign.gmailAccount.status !== GmailAccountStatus.ACTIVE) {
-    await prisma.campaigns.update({ where: { id: campaign.id }, data: { status: CampaignStatus.FAILED } });
+  if (campaign.gmail_accounts.status !== GmailAccountStatus.ACTIVE) {
+    await prisma.campaigns.update({ where: { id: campaign.id }, data: { status: CampaignStatus.PAUSED } });
     return;
   }
 
@@ -93,8 +81,8 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
   if (!lead) {
     const openCount = await prisma.leads.count({
       where: {
-        campaignId: campaign.id,
-        userId: campaign.userId,
+        campaign_id: campaign.id,
+        user_id: campaign.user_id,
         status: { in: [LeadStatus.PENDING, LeadStatus.QUEUED, LeadStatus.SENDING] }
       }
     });
@@ -104,30 +92,30 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
     return;
   }
 
-  await prisma.leads.update({ where: { id: lead.id }, data: { status: LeadStatus.SENDING, lastAttemptAt: new Date() } });
+  await prisma.leads.update({ where: { id: lead.id }, data: { status: LeadStatus.SENDING } });
 
-  const subject = campaign.subjectTemplate;
-  const body = campaign.bodyTemplate;
+  const subject = campaign.subject_template;
+  const body = campaign.body_template;
 
-  let accessToken = campaign.gmailAccount.accessTokenEncrypted ? decrypt(campaign.gmailAccount.accessTokenEncrypted) : "";
-  const refreshToken = decrypt(campaign.gmailAccount.refreshTokenEncrypted);
-  let expiresAt = campaign.gmailAccount.accessTokenExpiresAt ?? new Date(0);
+  let accessToken = campaign.gmail_accounts.access_token_encrypted ? decrypt(campaign.gmail_accounts.access_token_encrypted) : "";
+  const refreshToken = decrypt(campaign.gmail_accounts.refresh_token_encrypted);
+  let expiresAt = campaign.gmail_accounts.access_token_expires_at ?? new Date(0);
 
   if (!accessToken || expiresAt.getTime() <= Date.now() + 60_000) {
     const refreshed = await gmailService.refreshAccessToken(refreshToken);
     if (!refreshed) {
-      await prisma.gmail_accounts.update({ where: { id: campaign.gmailAccountId }, data: { status: GmailAccountStatus.DISCONNECTED } });
-      await prisma.campaigns.update({ where: { id: campaign.id }, data: { status: CampaignStatus.FAILED } });
-      await prisma.leads.update({ where: { id: lead.id }, data: { status: LeadStatus.FAILED, attemptCount: { increment: 1 } } });
+      await prisma.gmail_accounts.update({ where: { id: campaign.gmail_account_id }, data: { status: GmailAccountStatus.ERROR } });
+      await prisma.campaigns.update({ where: { id: campaign.id }, data: { status: CampaignStatus.PAUSED } });
+      await prisma.leads.update({ where: { id: lead.id }, data: { status: LeadStatus.FAILED } });
       return;
     }
     accessToken = refreshed.accessToken;
     expiresAt = refreshed.expiresAt;
     await prisma.gmail_accounts.update({
-      where: { id: campaign.gmailAccountId },
+      where: { id: campaign.gmail_account_id },
       data: {
-        accessTokenEncrypted: encrypt(accessToken),
-        accessTokenExpiresAt: expiresAt
+        access_token_encrypted: encrypt(accessToken),
+        access_token_expires_at: expiresAt
       }
     });
   }
@@ -136,7 +124,7 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
     accessToken,
     refreshToken,
     expiresAt,
-    from: campaign.gmailAccount.email,
+    from: campaign.gmail_accounts.email,
     to: lead.email,
     subject,
     body
@@ -145,57 +133,59 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
   if (response.ok) {
     await prisma.leads.update({
       where: { id: lead.id },
-      data: { status: LeadStatus.SENT, sentAt: new Date(), attemptCount: { increment: 1 } }
+      data: { status: LeadStatus.SENT, sent_at: new Date() }
     });
     await prisma.email_logs.create({
       data: {
-        userId: campaign.userId,
-        campaignId: campaign.id,
-        leadId: lead.id,
-        gmailAccountId: campaign.gmailAccountId,
+        id: randomUUID(),
+        user_id: campaign.user_id,
+        campaign_id: campaign.id,
+        lead_id: lead.id,
+        gmail_account_id: campaign.gmail_account_id,
+        subject: subject,
+        body: body,
         status: "sent",
-        providerCode: String(response.statusCode),
-        providerBody: response.body,
-        bounceStatus: "pending"
+        bounce_status: "pending"
       }
     });
     
     // Emit event for real-time update
-    logger.info(`📤 Emitting campaign update event: campaignId=${campaign.id}, userId=${campaign.userId}`);
-    await campaignEvents.emitCampaignUpdate(campaign.id, campaign.userId);
+    logger.info(`📤 Emitting campaign update event: campaignId=${campaign.id}, userId=${campaign.user_id}`);
+    await campaignEvents.emitCampaignUpdate(campaign.id, campaign.user_id);
     return;
   }
 
-  const updateData: Prisma.CampaignUpdateInput = { failureCount: { increment: 1 } };
+  const updateData: Prisma.campaignsUpdateInput = { failure_count: { increment: 1 } };
   if (response.rateLimited) {
     updateData.status = CampaignStatus.PAUSED;
-    await prisma.gmail_accounts.update({ where: { id: campaign.gmailAccountId }, data: { status: GmailAccountStatus.RATE_LIMITED } });
+    await prisma.gmail_accounts.update({ where: { id: campaign.gmail_account_id }, data: { status: GmailAccountStatus.ERROR } });
   }
   await prisma.campaigns.update({ where: { id: campaign.id }, data: updateData });
 
   const campaignAfter = await prisma.campaigns.findUnique({ where: { id: campaign.id } });
-  if ((campaignAfter?.failureCount ?? 0) >= env.CAMPAIGN_FAILURE_PAUSE_THRESHOLD) {
+  if ((campaignAfter?.failure_count ?? 0) >= env.CAMPAIGN_FAILURE_PAUSE_THRESHOLD) {
     await prisma.campaigns.update({ where: { id: campaign.id }, data: { status: CampaignStatus.PAUSED } });
   }
 
-  await prisma.leads.update({ where: { id: lead.id }, data: { status: LeadStatus.FAILED, attemptCount: { increment: 1 } } });
+  await prisma.leads.update({ where: { id: lead.id }, data: { status: LeadStatus.FAILED } });
   await prisma.email_logs.create({
     data: {
-      userId: campaign.userId,
-      campaignId: campaign.id,
-      leadId: lead.id,
-      gmailAccountId: campaign.gmailAccountId,
+      id: randomUUID(),
+      user_id: campaign.user_id,
+      campaign_id: campaign.id,
+      lead_id: lead.id,
+      gmail_account_id: campaign.gmail_account_id,
+      subject: subject,
+      body: body,
       status: "failed",
-      providerCode: String(response.statusCode),
-      providerBody: response.body,
-      errorMessage: response.rateLimited ? "Gmail 429 rate limit" : "Send failed",
-      bounceStatus: "pending"
+      error_message: response.rateLimited ? "Gmail 429 rate limit" : "Send failed",
+      bounce_status: "pending"
     }
   });
 
   // Emit event for real-time update on failure too
-  logger.info(`📤 Emitting campaign update event (failed): campaignId=${campaign.id}, userId=${campaign.userId}`);
-  await campaignEvents.emitCampaignUpdate(campaign.id, campaign.userId);
+  logger.info(`📤 Emitting campaign update event (failed): campaignId=${campaign.id}, userId=${campaign.user_id}`);
+  await campaignEvents.emitCampaignUpdate(campaign.id, campaign.user_id);
 };
 
 let running = true;
@@ -219,7 +209,7 @@ const runLoop = async (): Promise<void> => {
     try {
       const activeCampaigns = await prisma.campaigns.findMany({ 
         where: { status: CampaignStatus.ACTIVE }, 
-        select: { id: true, delayMinSeconds: true, delayMaxSeconds: true } 
+        select: { id: true, delay_min_seconds: true, delay_max_seconds: true } 
       });
       
       if (activeCampaigns.length === 0) {
@@ -238,8 +228,8 @@ const runLoop = async (): Promise<void> => {
         
         // Add random delay between iterations (3-8 seconds by default)
         // This ensures different campaigns don't fire at predictable times
-        const minDelay = Math.max(3, campaign.delayMinSeconds);
-        const maxDelay = Math.max(minDelay + 5, campaign.delayMaxSeconds);
+        const minDelay = Math.max(3, campaign.delay_min_seconds);
+        const maxDelay = Math.max(minDelay + 5, campaign.delay_max_seconds);
         const randomWait = randomDelayMs(minDelay, maxDelay);
         await sleep(randomWait);
       }

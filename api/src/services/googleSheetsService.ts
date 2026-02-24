@@ -6,10 +6,10 @@ export const googleSheetsService = {
   async readSheet(accountId: string, spreadsheetId: string, range: string = "Sheet1!A:A"): Promise<string[][]> {
     const account = await prisma.gmail_accounts.findUnique({
       where: { id: accountId },
-      select: { refreshTokenEncrypted: true, email: true }
+      select: { refresh_token_encrypted: true, email: true }
     });
 
-    if (!account?.refreshTokenEncrypted) {
+    if (!account?.refresh_token_encrypted) {
       throw new Error("Gmail account not found or not authenticated");
     }
 
@@ -20,7 +20,7 @@ export const googleSheetsService = {
     );
 
     oauth.setCredentials({
-      refresh_token: decrypt(account.refreshTokenEncrypted)
+      refresh_token: decrypt(account.refresh_token_encrypted)
     });
 
     const sheets = google.sheets({ version: "v4", auth: oauth });
