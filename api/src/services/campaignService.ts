@@ -59,7 +59,20 @@ export const campaignService = {
   async listCampaigns(userId: string) {
     return prisma.campaigns.findMany({
       where: { user_id: userId },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        daily_limit: true,
+        start_time: true,
+        subject_template: true,
+        body_template: true,
+        follow_up2_body: true,
+        follow_up2_delay_hours: true,
+        follow_up3_body: true,
+        follow_up3_delay_hours: true,
+        follow_up4_body: true,
+        follow_up4_delay_hours: true,
         _count: {
           select: {
             leads: true

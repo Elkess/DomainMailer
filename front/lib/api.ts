@@ -15,6 +15,14 @@ export interface Campaign {
   status: "DRAFT" | "ACTIVE" | "PAUSED" | "COMPLETED" | "FAILED";
   dailyLimit: number;
   startTime?: string | null;
+  subjectTemplate?: string;
+  bodyTemplate?: string;
+  followUp2Body?: string | null;
+  followUp2DelayHours?: number | null;
+  followUp3Body?: string | null;
+  followUp3DelayHours?: number | null;
+  followUp4Body?: string | null;
+  followUp4DelayHours?: number | null;
 }
 
 export interface CampaignStats {

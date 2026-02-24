@@ -238,6 +238,120 @@ export default function CampaignDetailPage() {
           </div>
         </section>
 
+        {/* Campaign Settings Section */}
+        <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
+          <h2 className="mb-4 text-lg font-semibold text-sky-400">Campaign Settings</h2>
+          
+          {/* Initial Email Template */}
+          {campaign.subjectTemplate && (
+            <div className="mb-4 rounded-lg border border-slate-700 bg-slate-950 p-4">
+              <h3 className="mb-2 text-sm font-semibold text-sky-300">Initial Email (Step 1)</h3>
+              <div className="mb-2">
+                <div className="text-xs text-slate-400">Subject:</div>
+                <div className="rounded border border-slate-800 bg-slate-900 p-2 text-sm text-slate-200">
+                  {campaign.subjectTemplate}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-400">Body:</div>
+                <div className="whitespace-pre-wrap rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-300">
+                  {campaign.bodyTemplate}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Daily Limit & Timing */}
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <div className="text-xs text-slate-400">Daily Limit</div>
+              <div className="font-semibold text-slate-200">{campaign.dailyLimit} emails/day</div>
+            </div>
+            {campaign.startTime && (
+              <div>
+                <div className="text-xs text-slate-400">Scheduled Start</div>
+                <div className="font-semibold text-slate-200">{new Date(campaign.startTime).toLocaleString()}</div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Follow-up Settings Section */}
+        {(campaign.followUp2Body || campaign.followUp3Body || campaign.followUp4Body) && (
+          <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
+            <h2 className="mb-4 text-lg font-semibold text-sky-400">Follow-up Sequence</h2>
+            <p className="mb-4 text-xs text-slate-400">These follow-ups will be sent automatically if recipients don't reply.</p>
+            <div className="space-y-4">
+              {campaign.followUp2Body && (
+                <div className="rounded-lg border border-slate-700 bg-slate-950 p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-sky-300">Follow-up #2</h3>
+                    <span className="rounded bg-sky-500/20 px-2 py-1 text-xs text-sky-400">
+                      Sent after {campaign.followUp2DelayHours || 72} hours
+                    </span>
+                  </div>
+                  <div className="mb-2">
+                    <div className="text-xs text-slate-400">Subject:</div>
+                    <div className="rounded border border-slate-800 bg-slate-900 p-2 text-xs text-slate-300">
+                      Re: {campaign.subjectTemplate || "(original subject)"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-400">Body:</div>
+                    <div className="whitespace-pre-wrap rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-300">
+                      {campaign.followUp2Body}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {campaign.followUp3Body && (
+                <div className="rounded-lg border border-slate-700 bg-slate-950 p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-sky-300">Follow-up #3</h3>
+                    <span className="rounded bg-sky-500/20 px-2 py-1 text-xs text-sky-400">
+                      Sent after {campaign.followUp3DelayHours || 72} hours
+                    </span>
+                  </div>
+                  <div className="mb-2">
+                    <div className="text-xs text-slate-400">Subject:</div>
+                    <div className="rounded border border-slate-800 bg-slate-900 p-2 text-xs text-slate-300">
+                      Re: {campaign.subjectTemplate || "(original subject)"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-400">Body:</div>
+                    <div className="whitespace-pre-wrap rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-300">
+                      {campaign.followUp3Body}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {campaign.followUp4Body && (
+                <div className="rounded-lg border border-slate-700 bg-slate-950 p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-sky-300">Follow-up #4 (Final)</h3>
+                    <span className="rounded bg-sky-500/20 px-2 py-1 text-xs text-sky-400">
+                      Sent after {campaign.followUp4DelayHours || 72} hours
+                    </span>
+                  </div>
+                  <div className="mb-2">
+                    <div className="text-xs text-slate-400">Subject:</div>
+                    <div className="rounded border border-slate-800 bg-slate-900 p-2 text-xs text-slate-300">
+                      Re: {campaign.subjectTemplate || "(original subject)"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-400">Body:</div>
+                    <div className="whitespace-pre-wrap rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-300">
+                      {campaign.followUp4Body}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
         {/* Leads Section */}
         <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
           <div className="mb-4 flex items-center justify-between">
