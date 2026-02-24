@@ -23,6 +23,7 @@ export default function CampaignDetailPage() {
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [error, setError] = useState("");
   const [showLeads, setShowLeads] = useState(false);
+  const [countdown, setCountdown] = useState<string>("");
 
   const loadCampaign = async () => {
     try {
@@ -59,6 +60,7 @@ export default function CampaignDetailPage() {
 
   useEffect(() => {
     loadCampaign();
+    loadLeads(); // Load leads to determine current step
   }, [campaignId]);
 
   useEffect(() => {
@@ -66,6 +68,61 @@ export default function CampaignDetailPage() {
       loadLeads();
     }
   }, [showLeads]);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (!campaign?.startTime) return;
+
+    const updateCountdown = () => {
+      const now = new Date().getTime();
+      const start = new Date(campaign.startTime!).getTime();
+      const distance = start - now;
+
+      if (distance <= 0) {
+        setCountdown("Started");
+        return;
+      }
+
+      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+      if (days > 0) {
+        setCountdown(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+      } else if (hours > 0) {
+        setCountdown(`${hours}h ${minutes}m ${seconds}s`);
+      } else if (minutes > 0) {
+        setCountdown(`${minutes}m ${seconds}s`);
+      } else {
+        setCountdown(`${seconds}s`);
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+
+    return () => clearInterval(interval);
+  }, [campaign?.startTime]);
+
+  // Determine current sequence step based on leads
+  const getCurrentStep = (): number => {
+    if (!leads || leads.length === 0) return 1;
+    
+    // Find the most common current sequence step among leads
+    const stepCounts: Record<number, number> = {};
+    leads.forEach(lead => {
+      const step = lead.currentSequenceStep || 1;
+      stepCounts[step] = (stepCounts[step] || 0) + 1;
+    });
+
+    // Return the step with the most leads, or 1 if none
+    const maxStep = Object.entries(stepCounts).reduce((max, [step, count]) => {
+      return count > (stepCounts[max] || 0) ? parseInt(step) : max;
+    }, 1);
+
+    return maxStep;
+  };
 
   // SSE for real-time updates
   useEffect(() => {
@@ -240,27 +297,84 @@ export default function CampaignDetailPage() {
 
         {/* Campaign Settings Section */}
         <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-          <h2 className="mb-4 text-lg font-semibold text-sky-400">Campaign Settings</h2>
+          <h2 className="mb-4 text-lg font-semibold text-sky-400">Current Step</h2>
           
-          {/* Initial Email Template */}
-          <div className="mb-4 rounded-lg border border-slate-700 bg-slate-950 p-4">
-            <h3 className="mb-2 text-sm font-semibold text-sky-300">Initial Email (Step 1)</h3>
-            <div className="mb-2">
-              <div className="text-xs text-slate-400">Subject:</div>
-              <div className="rounded border border-slate-800 bg-slate-900 p-2 text-sm text-slate-200">
-                {campaign.subjectTemplate || "No subject template"}
+          {/* Countdown Timer */}
+          {campaign.startTime && new Date(campaign.startTime) > new Date() && countdown !== "Started" && (
+            <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">⏰</div>
+                  <div>
+                    <div className="text-sm font-semibold text-amber-400">Campaign starts in</div>
+                    <div className="text-xs text-amber-300/70">Scheduled: {new Date(campaign.startTime).toLocaleString()}</div>
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-amber-400 tabular-nums">
+                  {countdown}
+                </div>
               </div>
             </div>
-            <div>
-              <div className="text-xs text-slate-400">Body:</div>
-              <div className="whitespace-pre-wrap rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-300">
-                {campaign.bodyTemplate || "No body template"}
+          )}
+
+          {countdown === "Started" && (
+            <div className="mb-4 rounded-lg border border-green-500/30 bg-green-500/10 p-4">
+              <div className="flex items-center gap-3">
+                <div className="text-2xl">✅</div>
+                <div className="text-sm font-semibold text-green-400">Campaign Started</div>
               </div>
             </div>
-          </div>
+          )}
+          
+          {/* Current Step Display */}
+          {(() => {
+            const currentStep = getCurrentStep();
+            const stepBodies = [
+              { number: 1, label: "Initial Email", body: campaign.bodyTemplate, subject: campaign.subjectTemplate },
+              { number: 2, label: "Follow-up #2", body: campaign.followUp2Body, subject: `Re: ${campaign.subjectTemplate}`, delay: campaign.followUp2DelayHours },
+              { number: 3, label: "Follow-up #3", body: campaign.followUp3Body, subject: `Re: ${campaign.subjectTemplate}`, delay: campaign.followUp3DelayHours },
+              { number: 4, label: "Follow-up #4 (Final)", body: campaign.followUp4Body, subject: `Re: ${campaign.subjectTemplate}`, delay: campaign.followUp4DelayHours }
+            ];
+            
+            const currentStepData = stepBodies[currentStep - 1];
+            
+            if (!currentStepData?.body && currentStep > 1) {
+              return null; // Skip if no follow-up configured for this step
+            }
+
+            return (
+              <div className="rounded-lg border border-sky-500/30 bg-slate-950 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-sky-300">{currentStepData.label}</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-sky-500/20 px-3 py-1 text-xs font-bold text-sky-400">
+                      Step {currentStep}/4
+                    </span>
+                    {currentStepData.delay && (
+                      <span className="rounded bg-amber-500/20 px-2 py-1 text-xs text-amber-400">
+                        After {currentStepData.delay}h
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="mb-2">
+                  <div className="text-xs text-slate-400">Subject:</div>
+                  <div className="rounded border border-slate-800 bg-slate-900 p-2 text-sm text-slate-200">
+                    {currentStepData.subject || "No subject"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-400">Body:</div>
+                  <div className="whitespace-pre-wrap rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-300">
+                    {currentStepData.body || "No body template"}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Daily Limit & Timing */}
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
             <div>
               <div className="text-xs text-slate-400">Daily Limit</div>
               <div className="font-semibold text-slate-200">{campaign.dailyLimit ?? "Not set"} emails/day</div>
@@ -273,82 +387,6 @@ export default function CampaignDetailPage() {
             )}
           </div>
         </section>
-
-        {/* Follow-up Settings Section */}
-        {(campaign.followUp2Body || campaign.followUp3Body || campaign.followUp4Body) && (
-          <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-            <h2 className="mb-4 text-lg font-semibold text-sky-400">Follow-up Sequence</h2>
-            <p className="mb-4 text-xs text-slate-400">These follow-ups will be sent automatically if recipients don't reply.</p>
-            <div className="space-y-4">
-              {campaign.followUp2Body && (
-                <div className="rounded-lg border border-slate-700 bg-slate-950 p-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-sky-300">Follow-up #2</h3>
-                    <span className="rounded bg-sky-500/20 px-2 py-1 text-xs text-sky-400">
-                      Sent after {campaign.followUp2DelayHours || 72} hours
-                    </span>
-                  </div>
-                  <div className="mb-2">
-                    <div className="text-xs text-slate-400">Subject:</div>
-                    <div className="rounded border border-slate-800 bg-slate-900 p-2 text-xs text-slate-300">
-                      Re: {campaign.subjectTemplate || "(original subject)"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">Body:</div>
-                    <div className="whitespace-pre-wrap rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-300">
-                      {campaign.followUp2Body}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {campaign.followUp3Body && (
-                <div className="rounded-lg border border-slate-700 bg-slate-950 p-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-sky-300">Follow-up #3</h3>
-                    <span className="rounded bg-sky-500/20 px-2 py-1 text-xs text-sky-400">
-                      Sent after {campaign.followUp3DelayHours || 72} hours
-                    </span>
-                  </div>
-                  <div className="mb-2">
-                    <div className="text-xs text-slate-400">Subject:</div>
-                    <div className="rounded border border-slate-800 bg-slate-900 p-2 text-xs text-slate-300">
-                      Re: {campaign.subjectTemplate || "(original subject)"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">Body:</div>
-                    <div className="whitespace-pre-wrap rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-300">
-                      {campaign.followUp3Body}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {campaign.followUp4Body && (
-                <div className="rounded-lg border border-slate-700 bg-slate-950 p-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-sky-300">Follow-up #4 (Final)</h3>
-                    <span className="rounded bg-sky-500/20 px-2 py-1 text-xs text-sky-400">
-                      Sent after {campaign.followUp4DelayHours || 72} hours
-                    </span>
-                  </div>
-                  <div className="mb-2">
-                    <div className="text-xs text-slate-400">Subject:</div>
-                    <div className="rounded border border-slate-800 bg-slate-900 p-2 text-xs text-slate-300">
-                      Re: {campaign.subjectTemplate || "(original subject)"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400">Body:</div>
-                    <div className="whitespace-pre-wrap rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-300">
-                      {campaign.followUp4Body}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
-        )}
 
         {/* Leads Section */}
         <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
