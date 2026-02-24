@@ -109,19 +109,20 @@ export default function CampaignDetailPage() {
   const getCurrentStep = (): number => {
     if (!leads || leads.length === 0) return 1;
     
-    // Find the most common current sequence step among leads
-    const stepCounts: Record<number, number> = {};
-    leads.forEach(lead => {
-      const step = lead.currentSequenceStep || 1;
-      stepCounts[step] = (stepCounts[step] || 0) + 1;
-    });
-
-    // Return the step with the most leads, or 1 if none
-    const maxStep = Object.entries(stepCounts).reduce((max, [step, count]) => {
-      return count > (stepCounts[max] || 0) ? parseInt(step) : max;
-    }, 1);
-
-    return maxStep;
+    // Find the maximum sequence step completed among all leads
+    const maxStepCompleted = Math.max(...leads.map(lead => lead.currentSequenceStep || 0));
+    
+    // Check if all leads have completed this step (are SENT)
+    const allCompletedMaxStep = leads.every(lead => 
+      (lead.currentSequenceStep || 0) === maxStepCompleted && lead.status === "SENT"
+    );
+    
+    // If all leads completed the max step, we're now working on the next step
+    // Otherwise, we're still working on the current max step
+    const nextStep = allCompletedMaxStep ? maxStepCompleted + 1 : maxStepCompleted || 1;
+    
+    // Cap at step 4 (don't show step 5)
+    return Math.min(nextStep, 4);
   };
 
   // SSE for real-time updates
