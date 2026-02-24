@@ -18,7 +18,8 @@ export const verifyAuthToken = (token: string): AuthUser => {
 export const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
   const authHeader = req.header("authorization");
   const cookieToken = req.cookies?.token;
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : cookieToken;
+  const queryToken = req.query.token as string | undefined;
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : cookieToken || queryToken;
 
   if (!token) {
     res.status(401).json({ error: "Unauthorized" });

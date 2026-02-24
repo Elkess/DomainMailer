@@ -9,6 +9,7 @@ import { gmailAccountService } from "./services/gmailAccountService";
 import { googleSheetsService } from "./services/googleSheetsService";
 import { dedupeLeadsByEmail, parseSheetData } from "./lib/csv";
 import { prisma } from "./lib/prisma";
+import { campaignEvents } from "./lib/eventEmitter";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -47,7 +48,7 @@ const importGoogleSheetSchema = z.object({
 
 const addLeadSchema = z.object({
   campaignId: z.string().uuid(),
-  email: z.string().email()
+  emails: z.string().min(1)
 });
 
 const deleteLeadSchema = z.object({
@@ -119,6 +120,68 @@ export const createRoutes = () => {
   router.post("/auth/logout", requireAuth, (_req, res) => {
     res.clearCookie("token");
     res.json({ ok: true });
+  });
+
+  // Server-Sent Events endpoint for real-time campaign updates
+  router.get("/campaigns/events", requireAuth, (req, res) => {
+    const userId = req.user.userId;
+    console.log(`✅ SSE client connected: userId=${userId}`);
+
+    // Set headers for SSE
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no"); // Disable buffering for nginx
+
+    // Send initial connection message
+    res.write(`data: ${JSON.stringify({ type: "connected" })}\n\n`);
+
+    // Handler for campaign updates (in-memory, same process)
+    const updateHandler = (event: { campaignId: string; userId: string; timestamp: number }) => {
+      if (event.userId === userId) {
+        console.log(`📤 Sending SSE update (in-memory) to userId=${userId}, campaignId=${event.campaignId}`);
+        res.write(`data: ${JSON.stringify({ 
+          type: "campaign:update", 
+          campaignId: event.campaignId,
+          timestamp: event.timestamp 
+        })}\n\n`);
+      }
+    };
+
+    // Register in-memory event listener
+    campaignEvents.onCampaignUpdate(updateHandler);
+
+    // Poll database for cross-process events every 2 seconds
+    const pollInterval = setInterval(async () => {
+      try {
+        const updates = await campaignEvents.pollForUpdates();
+        for (const event of updates) {
+          if (event.userId === userId) {
+            console.log(`📤 Sending SSE update (from DB) to userId=${userId}, campaignId=${event.campaignId}`);
+            res.write(`data: ${JSON.stringify({ 
+              type: "campaign:update", 
+              campaignId: event.campaignId,
+              timestamp: event.timestamp 
+            })}\n\n`);
+          }
+        }
+      } catch (err) {
+        console.error("Error polling for updates:", err);
+      }
+    }, 2000);
+
+    // Send heartbeat every 30 seconds to keep connection alive
+    const heartbeat = setInterval(() => {
+      res.write(`: heartbeat\n\n`);
+    }, 30000);
+
+    // Cleanup on connection close
+    req.on("close", () => {
+      console.log(`🔌 SSE client disconnected: userId=${userId}`);
+      clearInterval(pollInterval);
+      clearInterval(heartbeat);
+      campaignEvents.offCampaignUpdate(updateHandler);
+    });
   });
 
   router.get("/gmail/oauth-url", requireAuth, (req, res) => {
@@ -243,30 +306,69 @@ export const createRoutes = () => {
       return;
     }
 
-    const lead = await prisma.lead.create({
-      data: {
-        userId: req.user.userId,
-        campaignId: input.campaignId,
-        email: input.email,
-        firstName: "",
-        companyName: "",
-        domainName: "",
-        customFields: {},
-        status: "PENDING"
-      }
-    });
+    // Parse emails - split by newlines and filter out empty lines
+    const emailList = input.emails
+      .split(/\r?\n/)
+      .map(e => e.trim())
+      .filter(e => e.length > 0);
 
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user.userId,
-        action: "leads.add_manual",
-        resource: "lead",
-        resourceId: lead.id,
-        metadata: { campaignId: input.campaignId }
-      }
-    });
+    if (emailList.length === 0) {
+      res.status(400).json({ error: "No valid emails provided" });
+      return;
+    }
 
-    res.status(201).json({ lead });
+    // Validate each email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const invalidEmails = emailList.filter(email => !emailRegex.test(email));
+    if (invalidEmails.length > 0) {
+      res.status(400).json({ error: `Invalid email(s): ${invalidEmails.join(", ")}` });
+      return;
+    }
+
+    // Create leads for all emails
+    const createdLeads = [];
+    for (const email of emailList) {
+      // Check if lead already exists
+      const existingLead = await prisma.lead.findFirst({
+        where: {
+          campaignId: input.campaignId,
+          email: email.toLowerCase()
+        }
+      });
+
+      if (!existingLead) {
+        const lead = await prisma.lead.create({
+          data: {
+            userId: req.user.userId,
+            campaignId: input.campaignId,
+            email: email.toLowerCase(),
+            firstName: "",
+            companyName: "",
+            domainName: "",
+            customFields: {},
+            status: "PENDING"
+          }
+        });
+        createdLeads.push(lead);
+
+        await prisma.auditLog.create({
+          data: {
+            userId: req.user.userId,
+            action: "leads.add_manual",
+            resource: "lead",
+            resourceId: lead.id,
+            metadata: { campaignId: input.campaignId }
+          }
+        });
+      }
+    }
+
+    res.status(201).json({ 
+      leads: createdLeads,
+      inserted: createdLeads.length,
+      total: emailList.length,
+      skipped: emailList.length - createdLeads.length
+    });
   });
 
   router.post("/leads/delete", requireAuth, async (req, res) => {

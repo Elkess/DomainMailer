@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { api, Campaign } from "../../../lib/api";
 
 interface CampaignWithStats {
@@ -15,18 +15,20 @@ interface CampaignWithStats {
 
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<CampaignWithStats[]>([]);
+  const campaignsRef = useRef<CampaignWithStats[]>([]);
   const [accounts, setAccounts] = useState<Array<{ id: string; email: string; status: string }>>([]);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [addingLeadFor, setAddingLeadFor] = useState<string | null>(null);
   const [viewingLeadsFor, setViewingLeadsFor] = useState<string | null>(null);
+  const viewingLeadsForRef = useRef<string | null>(null);
   const [importingSheetFor, setImportingSheetFor] = useState<string | null>(null);
   const [sheetForm, setSheetForm] = useState({ url: "", range: "Sheet1!A:Z" });
   const [leads, setLeads] = useState<Array<{ id: string; email: string; status: string; sentAt: string | null; createdAt: string }>>([]);
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [leadForm, setLeadForm] = useState({
-    email: ""
+    emails: ""
   });
   const [form, setForm] = useState({
     gmailAccountId: "",
@@ -46,14 +48,101 @@ export default function CampaignsPage() {
         setForm((prev) => ({ ...prev, gmailAccountId: gmailAccounts[0].id }));
       }
       const stats = await Promise.all(campaignItems.map((campaign) => api.getCampaignStats(campaign.id)));
-      setCampaigns(campaignItems.map((item, index) => ({ item, stats: stats[index] })));
+      const campaignsWithStats = campaignItems.map((item, index) => ({ item, stats: stats[index] }));
+      setCampaigns(campaignsWithStats);
+      campaignsRef.current = campaignsWithStats;
     } catch (err: any) {
       setError(err.message);
     }
   };
 
+  const refreshStats = async () => {
+    try {
+      if (campaignsRef.current.length === 0) return;
+      
+      const stats = await Promise.all(
+        campaignsRef.current.map((campaign) => api.getCampaignStats(campaign.item.id))
+      );
+      const updatedCampaigns = campaignsRef.current.map((campaign, index) => ({
+        ...campaign,
+        stats: stats[index]
+      }));
+      setCampaigns(updatedCampaigns);
+      campaignsRef.current = updatedCampaigns;
+    } catch (err: any) {
+      // Silently fail for background updates
+      console.error("Failed to refresh stats:", err);
+    }
+  };
+
+  const refreshSingleCampaign = async (campaignId: string) => {
+    try {
+      console.log(`🔄 Refreshing campaign: ${campaignId}, currently viewing leads for: ${viewingLeadsForRef.current}`);
+      const stats = await api.getCampaignStats(campaignId);
+      setCampaigns((prev) => {
+        const updated = prev.map((campaign) => 
+          campaign.item.id === campaignId ? { ...campaign, stats } : campaign
+        );
+        campaignsRef.current = updated;
+        return updated;
+      });
+      
+      // Also refresh leads if viewing this campaign
+      if (viewingLeadsForRef.current === campaignId) {
+        console.log(`📋 Refreshing leads for campaign: ${campaignId}`);
+        await loadLeads(campaignId);
+      } else {
+        console.log(`⏭️  Not refreshing leads (viewingLeadsFor=${viewingLeadsForRef.current})`);
+      }
+    } catch (err: any) {
+      console.error("❌ Failed to refresh campaign:", err);
+    }
+  };
+
   useEffect(() => {
     load();
+  }, []);
+
+  // Connect to Server-Sent Events for real-time updates
+  useEffect(() => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("domainmailer_token") : null;
+    if (!token) return;
+
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+    const eventSource = new EventSource(`${apiBase}/campaigns/events?token=${encodeURIComponent(token)}`);
+
+    eventSource.onopen = () => {
+      console.log("✅ SSE connection established - Live updates active");
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("📨 SSE event received:", JSON.stringify(data, null, 2));
+        
+        if (data.type === "connected") {
+          console.log("✅ Initial connection event received");
+        } else if (data.type === "campaign:update" && data.campaignId) {
+          console.log(`🔄 Refreshing campaign: ${data.campaignId}`);
+          // Refresh only the specific campaign that changed
+          refreshSingleCampaign(data.campaignId);
+        } else {
+          console.log("⚠️ Unknown event type:", data.type);
+        }
+      } catch (err) {
+        console.error("❌ Failed to parse SSE event:", err, "Raw data:", event.data);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("❌ SSE connection error:", error);
+      eventSource.close();
+    };
+
+    return () => {
+      console.log("🔌 SSE connection closed");
+      eventSource.close();
+    };
   }, []);
 
   const onCreateCampaign = async (event: FormEvent) => {
@@ -128,9 +217,12 @@ export default function CampaignsPage() {
     
     setError("");
     try {
-      await api.addLead(addingLeadFor, leadForm);
-      alert("Lead added successfully!");
-      setLeadForm({ email: "" });
+      const result = await api.addLead(addingLeadFor, leadForm);
+      const message = result.skipped > 0 
+        ? `Successfully added ${result.inserted} lead(s)! (${result.skipped} duplicate(s) skipped)`
+        : `Successfully added ${result.inserted} lead(s)!`;
+      alert(message);
+      setLeadForm({ emails: "" });
       setAddingLeadFor(null);
       await load();
       if (viewingLeadsFor === addingLeadFor) {
@@ -155,11 +247,14 @@ export default function CampaignsPage() {
   };
 
   const loadLeads = async (campaignId: string) => {
+    console.log(`📨 Loading leads for campaign: ${campaignId}`);
     setLoadingLeads(true);
     try {
       const result = await api.getLeads(campaignId);
+      console.log(`✅ Loaded ${result.leads.length} leads`);
       setLeads(result.leads);
     } catch (err: any) {
+      console.error("❌ Failed to load leads:", err);
       setError(err.message);
     } finally {
       setLoadingLeads(false);
@@ -169,9 +264,11 @@ export default function CampaignsPage() {
   const toggleViewLeads = async (campaignId: string) => {
     if (viewingLeadsFor === campaignId) {
       setViewingLeadsFor(null);
+      viewingLeadsForRef.current = null;
       setLeads([]);
     } else {
       setViewingLeadsFor(campaignId);
+      viewingLeadsForRef.current = campaignId;
       await loadLeads(campaignId);
     }
   };
@@ -343,12 +440,20 @@ export default function CampaignsPage() {
 
         <div>
           <h3 className="mb-1 text-xs font-semibold text-sky-400">3. Add Manually</h3>
-          <p className="text-xs text-slate-400">Click "Add Lead" button on any campaign to add recipients one by one.</p>
+          <p className="text-xs text-slate-400">Click "Add Lead" button on any campaign to add recipients. You can add multiple emails at once (one per line).</p>
         </div>
       </section>
 
       <section className="rounded-xl border border-slate-800 bg-slate-900 p-4">
-        <h2 className="mb-3 text-sm font-semibold">Campaigns</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Campaigns</h2>
+          {campaigns.length > 0 && (
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+              <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500"></div>
+              <span>Live updates</span>
+            </div>
+          )}
+        </div>
         <div className="space-y-3">
           {campaigns.map(({ item, stats }) => (
             <div key={item.id} className="rounded-lg border border-slate-800 bg-slate-950 p-3">
@@ -400,19 +505,24 @@ export default function CampaignsPage() {
               
               {addingLeadFor === item.id && (
                 <form onSubmit={onAddLead} className="mb-2 rounded-lg border border-slate-700 bg-slate-900 p-3">
-                  <h3 className="mb-2 text-xs font-semibold text-sky-400">Add New Lead</h3>
-                  <div className="flex gap-2">
-                    <input
-                      className="flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                      placeholder="recipient@example.com"
-                      type="email"
-                      value={leadForm.email}
-                      onChange={(e) => setLeadForm({ email: e.target.value })}
+                  <h3 className="mb-2 text-xs font-semibold text-sky-400">Add New Lead(s)</h3>
+                  <p className="mb-2 text-[10px] text-slate-400">Enter one or more email addresses (one per line):</p>
+                  <div className="flex flex-col gap-2">
+                    <textarea
+                      className="flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[100px] font-mono"
+                      placeholder="recipient1@example.com&#10;recipient2@example.com&#10;recipient3@example.com"
+                      value={leadForm.emails}
+                      onChange={(e) => setLeadForm({ emails: e.target.value })}
                       required
                     />
-                    <button type="submit" className="rounded bg-sky-600 px-4 py-2 text-sm font-medium hover:bg-sky-500">
-                      Add
-                    </button>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setAddingLeadFor(null)} className="flex-1 rounded border border-slate-700 px-4 py-2 text-sm font-medium hover:bg-slate-800">
+                        Cancel
+                      </button>
+                      <button type="submit" className="flex-1 rounded bg-sky-600 px-4 py-2 text-sm font-medium hover:bg-sky-500">
+                        Add Lead(s)
+                      </button>
+                    </div>
                   </div>
                 </form>
               )}

@@ -4,6 +4,7 @@ import { logger } from "../lib/logger";
 import { prisma } from "../lib/prisma";
 import { decrypt, encrypt } from "../lib/security";
 import { gmailService } from "../services/gmailService";
+import { campaignEvents } from "../lib/eventEmitter";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const nowStartOfDay = () => new Date(new Date().setHours(0, 0, 0, 0));
@@ -158,6 +159,11 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
         bounceStatus: "pending"
       }
     });
+    
+    // Emit event for real-time update
+    logger.info(`📤 Emitting campaign update event: campaignId=${campaign.id}, userId=${campaign.userId}`);
+    await campaignEvents.emitCampaignUpdate(campaign.id, campaign.userId);
+    
     await sleep(randomDelayMs(campaign.delayMinSeconds, campaign.delayMaxSeconds));
     return;
   }
@@ -189,13 +195,19 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
     }
   });
 
+  // Emit event for real-time update on failure too
+  logger.info(`📤 Emitting campaign update event (failed): campaignId=${campaign.id}, userId=${campaign.userId}`);
+  await campaignEvents.emitCampaignUpdate(campaign.id, campaign.userId);
+
   await sleep(randomDelayMs(campaign.delayMinSeconds, campaign.delayMaxSeconds));
 };
 
 let running = true;
 
 const runLoop = async (): Promise<void> => {
-  logger.info("Worker started in DB polling mode (no Redis required)");
+  logger.info("✅ Worker started in DB polling mode");
+  logger.info("📡 Using PostgreSQL for cross-process events");
+  
   while (running) {
     try {
       const activeCampaigns = await prisma.campaign.findMany({ where: { status: CampaignStatus.ACTIVE }, select: { id: true } });
@@ -214,8 +226,11 @@ const runLoop = async (): Promise<void> => {
 };
 
 const shutdown = async () => {
+  logger.info("⚠️  Shutting down worker...");
   running = false;
+  await campaignEvents.close();
   await prisma.$disconnect();
+  logger.info("✅ Worker shutdown complete");
   process.exit(0);
 };
 
