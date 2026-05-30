@@ -1,7 +1,11 @@
-import { CampaignStatus, LeadStatus, Prisma } from "@prisma/client";
+import { Prisma } from "../generated/client";
 import { randomUUID } from "crypto";
 import { prisma } from "../lib/prisma";
 import { dedupeLeadsByEmail, parseLeadCsv } from "../lib/csv";
+
+// Use strings instead of Prisma enums for SQLite compatibility
+const CampaignStatus = { DRAFT: 'DRAFT', ACTIVE: 'ACTIVE', PAUSED: 'PAUSED', COMPLETED: 'COMPLETED' };
+const LeadStatus = { PENDING: 'PENDING', QUEUED: 'QUEUED', SENDING: 'SENDING', SENT: 'SENT', FAILED: 'FAILED' };
 
 export const campaignService = {
   async createCampaign(input: {
@@ -40,7 +44,7 @@ export const campaignService = {
         name: input.name,
         subject_template: input.subject_template,
         body_template: input.body_template,
-        required_variables: [],
+        required_variables: JSON.stringify([]),
         daily_limit: input.daily_limit,
         delay_min_seconds: input.delay_min_seconds,
         delay_max_seconds: input.delay_max_seconds,
@@ -151,7 +155,7 @@ export const campaignService = {
           domain_name: lead.domainName,
           first_name: lead.firstName,
           email: lead.email,
-          custom_fields: lead.customFields,
+          custom_fields: JSON.stringify(lead.customFields),
           status: LeadStatus.PENDING
         }))
       });

@@ -1,4 +1,4 @@
-import { CampaignStatus, GmailAccountStatus, LeadStatus, Prisma } from "@prisma/client";
+import { Prisma } from "../generated/client";
 import { randomUUID } from "crypto";
 import { env } from "../config/env";
 import { logger } from "../lib/logger";
@@ -6,6 +6,11 @@ import { prisma } from "../lib/prisma";
 import { decrypt, encrypt } from "../lib/security";
 import { gmailService } from "../services/gmailService";
 import { campaignEvents } from "../lib/eventEmitter";
+
+// Use strings instead of Prisma enums for SQLite compatibility
+const CampaignStatus = { DRAFT: 'DRAFT', ACTIVE: 'ACTIVE', PAUSED: 'PAUSED', COMPLETED: 'COMPLETED' };
+const LeadStatus = { PENDING: 'PENDING', QUEUED: 'QUEUED', SENDING: 'SENDING', SENT: 'SENT', FAILED: 'FAILED' };
+const GmailAccountStatus = { ACTIVE: 'ACTIVE', REVOKED: 'REVOKED', ERROR: 'ERROR' };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const nowStartOfDay = () => new Date(new Date().setHours(0, 0, 0, 0));
@@ -338,7 +343,7 @@ const shuffleArray = <T>(array: T[]): T[] => {
 
 const runLoop = async (): Promise<void> => {
   logger.info("✅ Worker started in DB polling mode");
-  logger.info("📡 Using PostgreSQL for cross-process events");
+  logger.info("📡 Using SQLite for cross-process events");
   logger.info("🎲 Using randomized campaign processing to avoid sending patterns");
   
   while (running) {

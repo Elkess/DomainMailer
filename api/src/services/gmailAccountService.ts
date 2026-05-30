@@ -1,7 +1,8 @@
-import { GmailAccountStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { decrypt, encrypt } from "../lib/security";
 import { gmailService } from "./gmailService";
+
+const GmailAccountStatus = { ACTIVE: 'ACTIVE', REVOKED: 'REVOKED', ERROR: 'ERROR' };
 
 export const gmailAccountService = {
   createAuthUrl(userId: string): string {

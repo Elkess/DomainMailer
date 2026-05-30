@@ -11,10 +11,12 @@ import { prisma } from "./lib/prisma";
 
 const app = express();
 
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(
   cors({
-    origin: env.FRONTEND_URL,
+    origin: [env.FRONTEND_URL, "https://ubiquitous-robot-gv5wqxpwg6whw7r7-3000.app.github.dev"],
     credentials: true
   })
 );
@@ -25,32 +27,9 @@ app.use(apiRateLimit);
 app.use("/api", createRoutes());
 app.use(errorHandler);
 
-// Create notifications table if it doesn't exist
-async function initDatabase() {
-  try {
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS campaign_notifications (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        campaign_id UUID NOT NULL,
-        user_id UUID NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    await prisma.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS idx_campaign_notifications_created 
-      ON campaign_notifications(created_at DESC)
-    `);
-    console.log("✅ Database tables initialized");
-  } catch (err) {
-    console.error("❌ Failed to initialize database:", err);
-  }
-}
-
-initDatabase();
-
 app.listen(env.PORT, () => {
   console.log(`✅ DomainMailer API running on port ${env.PORT}`);
-  console.log(`📡 Using PostgreSQL for cross-process events`);
+  console.log(`📡 Using SQLite for cross-process events`);
   console.log(`🔗 Frontend URL: ${env.FRONTEND_URL}`);
 });
 

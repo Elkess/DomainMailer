@@ -1,44 +1,45 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/client"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model audit_logs {
-  id          String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id          String   @id @default(cuid())
   user_id     String
   action      String
   resource    String
   resource_id String?
-  metadata    Json?
-  created_at  DateTime? @default(now()) @db.Timestamptz(6)
-  users       users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  metadata    String?
+  created_at  DateTime @default(now())
+  users       users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model campaign_notifications {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  campaign_id String   @db.Uuid
-  user_id     String   @db.Uuid
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  id          String   @id @default(cuid())
+  campaign_id String
+  user_id     String
+  created_at  DateTime @default(now())
 
-  @@index([created_at(sort: Desc)], map: "idx_campaign_notifications_created")
+  @@index([created_at])
 }
 
 model campaigns {
-  id                     String          @id
+  id                     String          @id @default(cuid())
   user_id                String
   gmail_account_id       String
   name                   String
   subject_template       String
   body_template          String
-  required_variables     Json?           @default("[]")
+  required_variables     String?         @default("[]")
   daily_limit            Int
   delay_min_seconds      Int
   delay_max_seconds      Int
-  start_time             DateTime?       @db.Timestamptz(6)
+  start_time             DateTime?
   status                 CampaignStatus? @default(DRAFT)
   failure_count          Int?            @default(0)
   follow_up2_body        String?
@@ -47,56 +48,56 @@ model campaigns {
   follow_up3_delay_hours Int?            @default(72)
   follow_up4_body        String?
   follow_up4_delay_hours Int?            @default(72)
-  created_at             DateTime?       @default(now()) @db.Timestamptz(6)
-  updated_at             DateTime?       @default(now()) @db.Timestamptz(6)
-  gmail_accounts         gmail_accounts  @relation(fields: [gmail_account_id], references: [id], onUpdate: NoAction)
-  users                  users           @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at             DateTime?       @default(now())
+  updated_at             DateTime?       @default(now())
+  gmail_accounts         gmail_accounts  @relation(fields: [gmail_account_id], references: [id])
+  users                  users           @relation(fields: [user_id], references: [id], onDelete: Cascade)
   email_logs             email_logs[]
   leads                  leads[]
   queue_jobs             queue_jobs[]
 
-  @@index([user_id, status], map: "idx_campaigns_user_status")
+  @@index([user_id, status])
 }
 
 model email_logs {
-  id               String         @id
+  id               String         @id @default(cuid())
   user_id          String
   campaign_id      String
   lead_id          String
   gmail_account_id String
   subject          String
   body             String
-  sent_at          DateTime?      @default(now()) @db.Timestamptz(6)
+  sent_at          DateTime?      @default(now())
   status           String?
   error_message    String?
   bounce_status    String?
-  created_at       DateTime?      @default(now()) @db.Timestamptz(6)
+  created_at       DateTime?      @default(now())
   sequence_step    Int?           @default(1)
-  campaigns        campaigns      @relation(fields: [campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  gmail_accounts   gmail_accounts @relation(fields: [gmail_account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  leads            leads          @relation(fields: [lead_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users            users          @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  campaigns        campaigns      @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+  gmail_accounts   gmail_accounts @relation(fields: [gmail_account_id], references: [id])
+  leads            leads          @relation(fields: [lead_id], references: [id], onDelete: Cascade)
+  users            users          @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@index([user_id, created_at], map: "idx_email_logs_user_created")
+  @@index([user_id, created_at])
 }
 
 model gmail_accounts {
-  id                      String              @id
+  id                      String              @id @default(cuid())
   user_id                 String
   email                   String
   refresh_token_encrypted String
   access_token_encrypted  String?
-  access_token_expires_at DateTime?           @db.Timestamptz(6)
+  access_token_expires_at DateTime?
   status                  GmailAccountStatus? @default(ACTIVE)
-  created_at              DateTime?           @default(now()) @db.Timestamptz(6)
+  created_at              DateTime?           @default(now())
   campaigns               campaigns[]
   email_logs              email_logs[]
-  users                   users               @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                   users               @relation(fields: [user_id], references: [id], onDelete: Cascade)
   leads                   leads[]
 }
 
 model leads {
-  id                    String          @id
+  id                    String          @id @default(cuid())
   user_id               String
   campaign_id           String
   gmail_account_id      String?
@@ -104,52 +105,52 @@ model leads {
   first_name            String?         @default("")
   company_name          String?         @default("")
   domain_name           String?         @default("")
-  custom_fields         Json?           @default("{}")
+  custom_fields         String?         @default("{}")
   status                LeadStatus?     @default(PENDING)
-  sent_at               DateTime?       @db.Timestamptz(6)
-  opened_at             DateTime?       @db.Timestamptz(6)
-  clicked_at            DateTime?       @db.Timestamptz(6)
-  replied_at            DateTime?       @db.Timestamptz(6)
-  bounced_at            DateTime?       @db.Timestamptz(6)
+  sent_at               DateTime?
+  opened_at             DateTime?
+  clicked_at            DateTime?
+  replied_at            DateTime?
+  bounced_at            DateTime?
   error_message         String?
-  created_at            DateTime?       @default(now()) @db.Timestamptz(6)
-  currentSequenceStep   Int?            @default(1) @map("currentSequenceStep")
-  lastMessageId         String?         @map("lastMessageId")
-  lastThreadId          String?         @map("lastThreadId")
-  receivedReply         Boolean?        @default(false) @map("receivedReply")
+  created_at            DateTime?       @default(now())
+  currentSequenceStep   Int?            @default(1)
+  lastMessageId         String?
+  lastThreadId          String?
+  receivedReply         Boolean?        @default(false)
   email_logs            email_logs[]
-  campaigns             campaigns       @relation(fields: [campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  gmail_accounts        gmail_accounts? @relation(fields: [gmail_account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users                 users           @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  campaigns             campaigns       @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+  gmail_accounts        gmail_accounts? @relation(fields: [gmail_account_id], references: [id])
+  users                 users           @relation(fields: [user_id], references: [id], onDelete: Cascade)
   queue_jobs            queue_jobs[]
 
   @@unique([campaign_id, email])
-  @@index([campaign_id, status], map: "idx_leads_campaign_status")
-  @@index([user_id, created_at], map: "idx_leads_user_created")
+  @@index([campaign_id, status])
+  @@index([user_id, created_at])
 }
 
 model queue_jobs {
-  id            String    @id
+  id            String    @id @default(cuid())
   user_id       String
   campaign_id   String
   lead_id       String
-  scheduled_for DateTime  @db.Timestamptz(6)
+  scheduled_for DateTime
   status        String?   @default("pending")
   attempts      Int?      @default(0)
   last_error    String?
-  created_at    DateTime? @default(now()) @db.Timestamptz(6)
-  campaigns     campaigns @relation(fields: [campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  leads         leads     @relation(fields: [lead_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users         users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at    DateTime? @default(now())
+  campaigns     campaigns @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+  leads         leads     @relation(fields: [lead_id], references: [id], onDelete: Cascade)
+  users         users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@index([scheduled_for, status], map: "idx_queue_jobs_scheduled")
+  @@index([scheduled_for, status])
 }
 
 model users {
-  id             String           @id
+  id             String           @id @default(cuid())
   email          String           @unique
   password_hash  String
-  created_at     DateTime?        @default(now()) @db.Timestamptz(6)
+  created_at     DateTime?        @default(now())
   audit_logs     audit_logs[]
   campaigns      campaigns[]
   email_logs     email_logs[]
@@ -159,14 +160,14 @@ model users {
 }
 
 model notifications {
-  id          String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id          String    @id @default(cuid())
   user_id     String
   campaign_id String
   timestamp   BigInt
-  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  created_at  DateTime? @default(now())
 
-  @@index([timestamp], map: "idx_notifications_timestamp")
-  @@index([user_id, campaign_id], map: "idx_notifications_user_campaign")
+  @@index([timestamp])
+  @@index([user_id, campaign_id])
 }
 
 enum CampaignStatus {

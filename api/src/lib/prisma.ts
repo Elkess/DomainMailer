@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../generated/client";
 
 // Log and normalize DATABASE_URL to help diagnose hosted env issues.
 const rawDatabaseUrl = process.env.DATABASE_URL;

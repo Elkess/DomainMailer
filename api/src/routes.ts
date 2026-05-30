@@ -20,7 +20,7 @@ const registerSchema = z.object({
 const loginSchema = registerSchema;
 
 const createCampaignSchema = z.object({
-  gmailAccountId: z.string().uuid(),
+  gmailAccountId: z.string().min(1),
   name: z.string().min(1),
   subjectTemplate: z.string().min(1),
   bodyTemplate: z.string().min(1),
@@ -38,34 +38,34 @@ const createCampaignSchema = z.object({
 });
 
 const campaignActionSchema = z.object({
-  campaignId: z.string().uuid(),
+  campaignId: z.string().min(1),
   action: z.enum(["start", "pause", "resume", "delete"])
 });
 
 const uploadLeadsSchema = z.object({
-  campaignId: z.string().uuid(),
+  campaignId: z.string().min(1),
   csv: z.string().min(1)
 });
 
 const importGoogleSheetSchema = z.object({
-  campaignId: z.string().uuid(),
-  gmailAccountId: z.string().uuid(),
+  campaignId: z.string().min(1),
+  gmailAccountId: z.string().min(1),
   sheetUrl: z.string().min(1),
   range: z.string().optional()
 });
 
 const addLeadSchema = z.object({
-  campaignId: z.string().uuid(),
+  campaignId: z.string().min(1),
   emails: z.string().min(1)
 });
 
 const deleteLeadSchema = z.object({
-  leadId: z.string().uuid()
+  leadId: z.string().min(1)
 });
 
 const previewSchema = z.object({
-  campaignId: z.string().uuid(),
-  leadId: z.string().uuid()
+  campaignId: z.string().min(1),
+  leadId: z.string().min(1)
 });
 
 const gmailConnectSchema = z.object({
@@ -73,7 +73,7 @@ const gmailConnectSchema = z.object({
 });
 
 const gmailDisconnectSchema = z.object({
-  accountId: z.string().uuid()
+  accountId: z.string().min(1)
 });
 
 const parse = <T>(schema: z.ZodType<T>, body: unknown): T => {
@@ -303,9 +303,9 @@ export const createRoutes = () => {
         action: "leads.upload_csv",
         resource: "campaign",
         resource_id: input.campaignId,
-        metadata: {
+        metadata: JSON.stringify({
           inserted: result.inserted
-        }
+        })
       }
     });
     res.status(201).json(result);
@@ -360,7 +360,7 @@ export const createRoutes = () => {
             first_name: "",
             company_name: "",
             domain_name: "",
-            custom_fields: {},
+            custom_fields: JSON.stringify({}),
             status: "PENDING"
           }
         });
@@ -372,7 +372,7 @@ export const createRoutes = () => {
             action: "leads.add_manual",
             resource: "lead",
             resource_id: lead.id,
-            metadata: { campaignId: input.campaignId }
+            metadata: JSON.stringify({ campaignId: input.campaignId })
           }
         });
       }
@@ -411,7 +411,7 @@ export const createRoutes = () => {
         action: "leads.delete",
         resource: "lead",
         resource_id: lead.id,
-        metadata: { campaignId: lead.campaign_id, email: lead.email }
+        metadata: JSON.stringify({ campaignId: lead.campaign_id, email: lead.email })
       }
     });
 
@@ -467,7 +467,7 @@ export const createRoutes = () => {
             first_name: lead.firstName,
             company_name: lead.companyName,
             domain_name: lead.domainName,
-            custom_fields: lead.customFields,
+            custom_fields: JSON.stringify(lead.customFields),
             status: "PENDING" as const
           }))
         })
@@ -479,10 +479,10 @@ export const createRoutes = () => {
           action: "leads.import_google_sheet",
           resource: "campaign",
           resource_id: input.campaignId,
-          metadata: {
+          metadata: JSON.stringify({
             inserted: inserted.count,
             spreadsheetId
-          }
+          })
         }
       });
 

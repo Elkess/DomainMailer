@@ -24,51 +24,53 @@ class CampaignEventEmitter extends EventEmitter {
     
     // Store in database for cross-process communication
     try {
-      // First check if table exists
-      const tableCheck = await prisma.$queryRawUnsafe(`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_name = 'campaign_notifications'
-        )
-      `);
-      console.log("📊 Table check:", tableCheck);
-      
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO campaign_notifications (campaign_id, user_id, created_at) 
-         VALUES ('${campaignId}', '${userId}', NOW())`
-      );
+      await (prisma as any).campaign_notifications.create({
+        data: {
+          campaign_id: campaignId,
+          user_id: userId,
+          created_at: new Date()
+        }
+      });
       console.log("✅ Stored notification in database");
     } catch (err: any) {
       console.error("❌ Failed to store notification:", err.message);
-      console.error("Full error:", err);
     }
   }
 
   async pollForUpdates(): Promise<CampaignUpdateEvent[]> {
     try {
       // Get notifications since last check
-      const notifications: any[] = await prisma.$queryRawUnsafe(
-        `SELECT campaign_id as "campaignId", user_id as "userId", 
-         EXTRACT(EPOCH FROM created_at) * 1000 as timestamp
-         FROM campaign_notifications 
-         WHERE created_at > to_timestamp(${this.lastCheckTime / 1000})
-         ORDER BY created_at ASC`
-      );
+      const lastCheckDate = new Date(this.lastCheckTime);
+      const notifications = await (prisma as any).campaign_notifications.findMany({
+        where: {
+          created_at: {
+            gt: lastCheckDate
+          }
+        },
+        orderBy: {
+          created_at: 'asc'
+        }
+      });
 
       if (notifications.length > 0) {
         console.log(`📬 Polled ${notifications.length} notification(s) from database`);
         this.lastCheckTime = Date.now();
 
         // Cleanup old notifications (older than 1 minute)
-        await prisma.$executeRawUnsafe(
-          `DELETE FROM campaign_notifications WHERE created_at < NOW() - INTERVAL '1 minute'`
-        );
+        const oneMinuteAgo = new Date(Date.now() - 60000);
+        await (prisma as any).campaign_notifications.deleteMany({
+          where: {
+            created_at: {
+              lt: oneMinuteAgo
+            }
+          }
+        });
       }
 
-      return notifications.map(n => ({
-        campaignId: n.campaignId,
-        user_id: n.userId,
-        timestamp: Number(n.timestamp)
+      return notifications.map((n: any) => ({
+        campaignId: n.campaign_id,
+        user_id: n.user_id,
+        timestamp: n.created_at.getTime()
       }));
     } catch (err) {
       console.error("❌ Failed to poll notifications:", err);
