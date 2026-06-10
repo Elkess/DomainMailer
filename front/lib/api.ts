@@ -1,4 +1,4 @@
-export const apiBase = process.env.NEXT_PUBLIC_API_URL;
+export const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
 
 export interface Summary {
   totalCampaigns: number;
