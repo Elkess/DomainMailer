@@ -16,7 +16,7 @@ app.use(helmet({
 }));
 app.use(
   cors({
-    origin: [env.FRONTEND_URL, "https://ubiquitous-robot-gv5wqxpwg6whw7r7-3000.app.github.dev"],
+    origin: [env.FRONTEND_URL, ""],
     credentials: true
   })
 );

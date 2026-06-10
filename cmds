@@ -31,9 +31,11 @@ sudo fuser -k 4000/tcp
 
 
 
+pm2 status — See if the worker is running and how much memory it's using.
 
-
-
+pm2 logs — View live console logs and errors from your worker.
+# Restart the worker if you push code updates.
+pm2 restart mailer-worker
 
 
 
