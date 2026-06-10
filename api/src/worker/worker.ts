@@ -8,9 +8,9 @@ import { gmailService } from "../services/gmailService";
 import { campaignEvents } from "../lib/eventEmitter";
 
 // Use strings instead of Prisma enums for SQLite compatibility
-const CampaignStatus = { DRAFT: 'DRAFT', ACTIVE: 'ACTIVE', PAUSED: 'PAUSED', COMPLETED: 'COMPLETED' };
-const LeadStatus = { PENDING: 'PENDING', QUEUED: 'QUEUED', SENDING: 'SENDING', SENT: 'SENT', FAILED: 'FAILED' };
-const GmailAccountStatus = { ACTIVE: 'ACTIVE', REVOKED: 'REVOKED', ERROR: 'ERROR' };
+const CampaignStatus = { DRAFT: 'DRAFT', ACTIVE: 'ACTIVE', PAUSED: 'PAUSED', COMPLETED: 'COMPLETED' } as const;
+const LeadStatus = { PENDING: 'PENDING', QUEUED: 'QUEUED', SENDING: 'SENDING', SENT: 'SENT', FAILED: 'FAILED' } as const;
+const GmailAccountStatus = { ACTIVE: 'ACTIVE', REVOKED: 'REVOKED', ERROR: 'ERROR' } as const;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const nowStartOfDay = () => new Date(new Date().setHours(0, 0, 0, 0));

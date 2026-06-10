@@ -119,8 +119,8 @@ export const gmailService = {
         body: JSON.stringify(response.data),
         rateLimited: false,
         unauthorized: false,
-        messageId: response.data.id,
-        threadId: response.data.threadId
+        messageId: response.data.id ?? undefined,
+        threadId: response.data.threadId ?? undefined
       };
     } catch (error: any) {
       const statusCode = Number(error?.code ?? error?.response?.status ?? 500);

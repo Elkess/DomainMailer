@@ -2,7 +2,7 @@ import { prisma } from "../lib/prisma";
 import { decrypt, encrypt } from "../lib/security";
 import { gmailService } from "./gmailService";
 
-const GmailAccountStatus = { ACTIVE: 'ACTIVE', REVOKED: 'REVOKED', ERROR: 'ERROR' };
+const GmailAccountStatus = { ACTIVE: 'ACTIVE', REVOKED: 'REVOKED', ERROR: 'ERROR' } as const;
 
 export const gmailAccountService = {
   createAuthUrl(userId: string): string {

@@ -4,8 +4,8 @@ import { prisma } from "../lib/prisma";
 import { dedupeLeadsByEmail, parseLeadCsv } from "../lib/csv";
 
 // Use strings instead of Prisma enums for SQLite compatibility
-const CampaignStatus = { DRAFT: 'DRAFT', ACTIVE: 'ACTIVE', PAUSED: 'PAUSED', COMPLETED: 'COMPLETED' };
-const LeadStatus = { PENDING: 'PENDING', QUEUED: 'QUEUED', SENDING: 'SENDING', SENT: 'SENT', FAILED: 'FAILED' };
+const CampaignStatus = { DRAFT: 'DRAFT', ACTIVE: 'ACTIVE', PAUSED: 'PAUSED', COMPLETED: 'COMPLETED' } as const;
+const LeadStatus = { PENDING: 'PENDING', QUEUED: 'QUEUED', SENDING: 'SENDING', SENT: 'SENT', FAILED: 'FAILED' } as const;
 
 export const campaignService = {
   async createCampaign(input: {
