@@ -13,6 +13,7 @@ dist/
 build/
 coverage/
 *.tsbuildinfo
+**/src/generated/
 
 # -----------------------------
 # Environment / secrets
