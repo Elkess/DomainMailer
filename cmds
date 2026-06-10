@@ -1,0 +1,62 @@
+# 1. Start the Frontend (added < /dev/null)
+cd front && nohup npm run dev < /dev/null > front.log 2>&1 & cd ..
+
+# 2. Start the API (added < /dev/null)
+cd api && nohup npm run dev < /dev/null > api.log 2>&1 & cd ..
+
+# 3. Start the Worker (added < /dev/null just in case it watches files)
+cd api && nohup npm run worker < /dev/null > worker.log 2>&1 & cd ..
+
+# Wait a brief moment for the tunnels to initialize and allocate ports
+sleep 2
+
+# Tunnel for Frontend
+nohup ssh -o ServerAliveInterval=30 -R 80:127.0.0.1:3000 nokey@localhost.run > tunnel_front.log 2>&1 &
+
+# Tunnel for API Backend
+nohup ssh -o ServerAliveInterval=30 -R 80:127.0.0.1:8000 nokey@localhost.run > tunnel_api.log 2>&1 &
+
+# Note: Your grep for 'lhr.life' might not yield results if you are using 'localhost.run' as the SSH host. 
+# Make sure your grep matches the output of the provider you are using!
+cat tunnel_front.log
+cat tunnel_api.log
+
+
+
+
+
+# kill 
+sudo fuser -k 3000/tcp
+sudo fuser -k 4000/tcp
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Tunnel for Frontend (e.g., Port 3000)
+nohup ssh -o ServerAliveInterval=30 -R 80:127.0.0.1:3000 nokey@localhost.run > tunnel_front.log 2>&1 &
+
+# Tunnel for API Backend (e.g., Port 8000)
+nohup ssh -o ServerAliveInterval=30 -R 80:127.0.0.1:8000 nokey@localhost.run > tunnel_api.log 2>&1 &
+
+
+
+cat tunnel_front.log | grep lhr.life
+cat tunnel_api.log | grep lhr.life
+
+
+pkill -f "npm run dev"
