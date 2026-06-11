@@ -23,4 +23,8 @@ export class EmailAccountService {
   listAccounts(userId: string) {
     return this.emailAccountRepository.listByUser(userId);
   }
+
+  async disconnectAccount(accountId: string, userId: string) {
+    await this.emailAccountRepository.delete(accountId, userId);
+  }
 }

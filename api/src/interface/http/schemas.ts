@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+export const disconnectGmailSchema = z.object({
+  accountId: z.string().uuid()
+});
+
 export const createCampaignSchema = z.object({
   emailAccountId: z.string().uuid(),
   name: z.string().min(1),

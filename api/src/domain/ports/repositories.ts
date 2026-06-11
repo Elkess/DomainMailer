@@ -17,6 +17,7 @@ export interface EmailAccountRepository {
   }): Promise<void>;
   disable(id: string): Promise<void>;
   listByUser(userId: string): Promise<EmailAccount[]>;
+  delete(id: string, userId: string): Promise<void>;
 }
 
 export interface CampaignRepository {

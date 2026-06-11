@@ -112,6 +112,10 @@ export class PostgresEmailAccountRepository implements EmailAccountRepository {
     const result = await db.query(`SELECT * FROM email_accounts WHERE user_id = $1 ORDER BY created_at DESC`, [userId]);
     return result.rows.map(mapEmailAccount);
   }
+
+  async delete(id: string, userId: string): Promise<void> {
+    await db.query(`DELETE FROM email_accounts WHERE id = $1 AND user_id = $2`, [id, userId]);
+  }
 }
 
 export class PostgresCampaignRepository implements CampaignRepository {
