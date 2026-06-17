@@ -195,7 +195,7 @@ export default function CampaignDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 sm:p-6">
       <div className="mx-auto max-w-6xl space-y-6">
         {/* Back button */}
         <button
@@ -213,11 +213,11 @@ export default function CampaignDetailPage() {
         )}
 
         {/* Campaign Header */}
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-          <div className="mb-4 flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-sky-400">{campaign.name}</h1>
-              <div className="mt-2 flex items-center gap-2 text-sm">
+        <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold text-sky-400 break-all">{campaign.name}</h1>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
                 <span className={`rounded px-2 py-1 text-xs font-semibold ${
                   campaign.status === "ACTIVE" ? "bg-green-500/20 text-green-400" :
                   campaign.status === "PAUSED" ? "bg-yellow-500/20 text-yellow-400" :
@@ -233,7 +233,7 @@ export default function CampaignDetailPage() {
                 )}
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {campaign.status === "DRAFT" && (
                 <button
                   onClick={() => handleCampaignAction("start")}
@@ -276,7 +276,7 @@ export default function CampaignDetailPage() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="rounded-lg bg-slate-950 p-4">
               <div className="text-xs text-slate-400">Pending</div>
               <div className="text-2xl font-bold text-slate-200">{stats.pending}</div>
@@ -305,13 +305,13 @@ export default function CampaignDetailPage() {
         </section>
 
         {/* Campaign Settings Section */}
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
+        <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
           <h2 className="mb-4 text-lg font-semibold text-sky-400">Current Step</h2>
           
           {/* Countdown Timer */}
           {campaign.startTime && new Date(campaign.startTime) > new Date() && countdown !== "Started" && (
             <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="text-3xl">⏰</div>
                   <div>
@@ -319,7 +319,7 @@ export default function CampaignDetailPage() {
                     <div className="text-xs text-amber-300/70">Scheduled: {new Date(campaign.startTime).toLocaleString()}</div>
                   </div>
                 </div>
-                <div className="text-3xl font-bold text-amber-400 tabular-nums">
+                <div className="text-2xl sm:text-3xl font-bold text-amber-400 tabular-nums">
                   {countdown}
                 </div>
               </div>
@@ -353,7 +353,7 @@ export default function CampaignDetailPage() {
 
             return (
               <div className="rounded-lg border border-sky-500/30 bg-slate-950 p-4">
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <h3 className="text-sm font-semibold text-sky-300">{currentStepData.label}</h3>
                   <div className="flex items-center gap-2">
                     <span className="rounded-full bg-sky-500/20 px-3 py-1 text-xs font-bold text-sky-400">
@@ -368,7 +368,7 @@ export default function CampaignDetailPage() {
                 </div>
                 <div className="mb-2">
                   <div className="text-xs text-slate-400">Subject:</div>
-                  <div className="rounded border border-slate-800 bg-slate-900 p-2 text-sm text-slate-200">
+                  <div className="rounded border border-slate-800 bg-slate-900 p-2 text-sm text-slate-200 break-all">
                     {currentStepData.subject || "No subject"}
                   </div>
                 </div>
@@ -383,7 +383,7 @@ export default function CampaignDetailPage() {
           })()}
 
           {/* Campaign Configuration */}
-          <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
             <div>
               <div className="text-xs text-slate-400">Daily Limit</div>
               <div className="font-semibold text-slate-200">{campaign.dailyLimit ?? "Not set"} emails/day</div>
@@ -401,15 +401,15 @@ export default function CampaignDetailPage() {
                 <div className="text-xs text-slate-400">
                   {new Date(campaign.startTime) <= new Date() ? "Started At" : "Scheduled Start"}
                 </div>
-                <div className="font-semibold text-slate-200">{new Date(campaign.startTime).toLocaleString()}</div>
+                <div className="font-semibold text-slate-200 break-all">{new Date(campaign.startTime).toLocaleString()}</div>
               </div>
             )}
           </div>
         </section>
 
         {/* Leads Section */}
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-          <div className="mb-4 flex items-center justify-between">
+        <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h2 className="text-lg font-semibold text-sky-400">Recipients</h2>
             <button
               onClick={() => setShowLeads(!showLeads)}
@@ -429,11 +429,11 @@ export default function CampaignDetailPage() {
                 leads.map((lead) => (
                   <div
                     key={lead.id}
-                    className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 p-3"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950 p-3"
                   >
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <div className="font-medium text-slate-200">{lead.email}</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="font-medium text-slate-200 break-all">{lead.email}</div>
                         {lead.currentSequenceStep && lead.currentSequenceStep > 0 && (
                           <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-[10px] font-semibold text-sky-400">
                             Email {lead.currentSequenceStep}/4
@@ -446,7 +446,7 @@ export default function CampaignDetailPage() {
                     </div>
                     <button
                       onClick={() => onDeleteLead(lead.id)}
-                      className="rounded border border-slate-700 px-2 py-1 text-xs text-red-400 hover:bg-slate-800 transition"
+                      className="w-fit rounded border border-slate-700 px-2 py-1 text-xs text-red-400 hover:bg-slate-800 transition"
                     >
                       Delete
                     </button>

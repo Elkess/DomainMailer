@@ -509,28 +509,17 @@ export const createRoutes = () => {
         email: true,
         status: true,
         sent_at: true,
-        created_at: true
+        created_at: true,
+        currentSequenceStep: true
       },
       orderBy: { created_at: "desc" }
     });
 
-    // Get the current sequence step for each lead from email_logs
-    const leadsWithSequence = await Promise.all(
-      leads.map(async (lead) => {
-        const lastEmail = await prisma.email_logs.findFirst({
-          where: {
-            lead_id: lead.id,
-            status: 'sent'
-          },
-          orderBy: { created_at: 'desc' },
-          select: { sequence_step: true }
-        });
-        return {
-          ...lead,
-          currentSequenceStep: lastEmail?.sequence_step || 0
-        };
-      })
-    );
+    // Map the leads, defaulting currentSequenceStep to 0 if null
+    const leadsWithSequence = leads.map(lead => ({
+      ...lead,
+      currentSequenceStep: lead.currentSequenceStep || 0
+    }));
 
     res.json({ leads: leadsWithSequence });
   });

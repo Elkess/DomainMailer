@@ -28,30 +28,32 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="mx-auto mt-12 max-w-md rounded-xl border border-slate-800 bg-slate-900 p-6">
-      <h1 className="mb-6 text-2xl font-semibold">Create account</h1>
-      <form className="space-y-4" onSubmit={onSubmit}>
-        <input
-          className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <input
-          className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        {error ? <p className="text-sm text-rose-400">{error}</p> : null}
-        <button disabled={loading} className="w-full rounded-md bg-sky-600 px-3 py-2 font-medium">
-          {loading ? "Creating..." : "Create account"}
-        </button>
-      </form>
-      <p className="mt-4 text-sm text-slate-400">
-        Already have an account? <Link href="/login" className="text-sky-400">Sign in</Link>
-      </p>
-    </main>
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+      <main className="mx-auto w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-6">
+        <h1 className="mb-6 text-2xl font-semibold text-center">Create account</h1>
+        <form className="space-y-4" onSubmit={onSubmit}>
+          <input
+            className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <input
+            className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+          <button disabled={loading} className="w-full rounded-md bg-sky-600 px-3 py-2 font-medium">
+            {loading ? "Creating..." : "Create account"}
+          </button>
+        </form>
+        <p className="mt-4 text-sm text-slate-400 text-center">
+          Already have an account? <Link href="/login" className="text-sky-400">Sign in</Link>
+        </p>
+      </main>
+    </div>
   );
 }

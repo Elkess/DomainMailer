@@ -263,10 +263,10 @@ export default function CampaignsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 sm:p-6">
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-sky-400">Campaigns</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-sky-400">Campaigns</h1>
           {campaigns.length > 0 && (
             <div className="flex items-center gap-1.5 text-xs text-slate-500">
               <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500"></div>
@@ -282,8 +282,8 @@ export default function CampaignsPage() {
         )}
 
         {/* Gmail Accounts */}
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-          <div className="mb-4 flex items-center justify-between">
+        <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h2 className="text-lg font-semibold text-sky-400">Gmail Accounts</h2>
             <button
               onClick={onConnectGmail}
@@ -297,14 +297,14 @@ export default function CampaignsPage() {
               <p className="text-sm text-slate-400">No Gmail accounts connected yet.</p>
             ) : (
               accounts.map((account) => (
-                <div key={account.id} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950 p-3">
+                <div key={account.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950 p-3">
                   <div>
-                    <div className="font-medium text-slate-200">{account.email}</div>
+                    <div className="font-medium text-slate-200 break-all">{account.email}</div>
                     <div className="text-xs text-slate-400">{account.status}</div>
                   </div>
                   <button
                     onClick={() => onDisconnectAccount(account.id)}
-                    className="rounded border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:bg-slate-800 transition"
+                    className="w-fit rounded border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:bg-slate-800 transition"
                   >
                     Disconnect
                   </button>
@@ -315,10 +315,10 @@ export default function CampaignsPage() {
         </section>
 
         {/* Create Campaign Form */}
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
+        <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
           <h2 className="mb-4 text-lg font-semibold text-sky-400">Create New Campaign</h2>
           <form className="grid gap-6 md:grid-cols-2" onSubmit={onCreateCampaign}>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 md:col-span-2 sm:col-span-1">
               <label className="text-xs font-medium uppercase tracking-wider text-slate-400">Campaign Name</label>
               <input 
                 className="rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm transition focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500" 
@@ -329,7 +329,7 @@ export default function CampaignsPage() {
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 md:col-span-2 sm:col-span-1">
               <label className="text-xs font-medium uppercase tracking-wider text-slate-400">Gmail Sending Account</label>
               <select 
                 className="rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm transition focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500" 
@@ -368,7 +368,7 @@ export default function CampaignsPage() {
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 md:col-span-2 sm:col-span-1">
               <label className="text-xs font-medium uppercase tracking-wider text-slate-400">Daily Sending Limit</label>
               <input 
                 className="rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm transition focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500" 
@@ -381,7 +381,7 @@ export default function CampaignsPage() {
               <p className="text-[10px] text-slate-500">Maximum emails to send every 24 hours.</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:col-span-2 sm:col-span-1">
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium uppercase tracking-wider text-slate-400">Min Delay (sec)</label>
                 <input 
@@ -408,7 +408,7 @@ export default function CampaignsPage() {
 
             <div className="flex flex-col gap-1.5 md:col-span-2">
               <label className="text-xs font-medium uppercase tracking-wider text-slate-400">Campaign Start</label>
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm transition hover:border-sky-500">
                   <input 
                     type="radio" 
@@ -452,15 +452,15 @@ export default function CampaignsPage() {
             </div>
 
             {/* Email Recipients Section - REQUIRED */}
-            <div className="md:col-span-2 rounded-lg border border-amber-600 bg-amber-950/20 p-6">
+            <div className="md:col-span-2 rounded-lg border border-amber-600 bg-amber-950/20 p-4 sm:p-6">
               <h3 className="mb-4 text-base font-semibold text-amber-400">📧 Add Recipients (Required)</h3>
               <p className="mb-6 text-xs text-slate-400">Add at least one email address to create the campaign. Choose from CSV upload, Google Sheets, or manual entry.</p>
               
               {/* Upload CSV */}
               <div className="mb-6">
                 <h4 className="mb-2 text-sm font-semibold text-slate-300">Upload CSV File</h4>
-                <div className="flex gap-2">
-                  <label className="inline-block cursor-pointer rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-sm hover:bg-slate-800 transition">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <label className="inline-block cursor-pointer rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-sm hover:bg-slate-800 transition text-center sm:text-left">
                     {csvFile ? csvFile.name : "Choose CSV File"}
                     <input
                       type="file"
@@ -487,7 +487,7 @@ export default function CampaignsPage() {
               {/* Import from Google Sheets */}
               <div className="mb-6">
                 <h4 className="mb-2 text-sm font-semibold text-slate-300">Import from Google Sheets</h4>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     className="flex-1 rounded-lg border border-slate-800 bg-slate-950 px-4 py-2 text-sm transition focus:border-sky-500 focus:outline-none"
@@ -497,7 +497,7 @@ export default function CampaignsPage() {
                   />
                   <input
                     type="text"
-                    className="w-32 rounded-lg border border-slate-800 bg-slate-950 px-4 py-2 text-sm transition focus:border-sky-500 focus:outline-none"
+                    className="w-full sm:w-32 rounded-lg border border-slate-800 bg-slate-950 px-4 py-2 text-sm transition focus:border-sky-500 focus:outline-none"
                     placeholder="Sheet1!A:Z"
                     value={sheetForm.range}
                     onChange={(e) => setSheetForm({ ...sheetForm, range: e.target.value })}
@@ -526,7 +526,7 @@ export default function CampaignsPage() {
               
               {/* Follow-up 2 */}
               <div className="mb-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <h4 className="text-xs font-semibold text-sky-400">Follow-up #2</h4>
                   <div className="flex items-center gap-2">
                     <label className="text-xs text-slate-400">Send after</label>
@@ -551,7 +551,7 @@ export default function CampaignsPage() {
 
               {/* Follow-up 3 */}
               <div className="mb-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <h4 className="text-xs font-semibold text-sky-400">Follow-up #3</h4>
                   <div className="flex items-center gap-2">
                     <label className="text-xs text-slate-400">Send after</label>
@@ -576,7 +576,7 @@ export default function CampaignsPage() {
 
               {/* Follow-up 4 */}
               <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <h4 className="text-xs font-semibold text-sky-400">Follow-up #4 (Final)</h4>
                   <div className="flex items-center gap-2">
                     <label className="text-xs text-slate-400">Send after</label>
@@ -612,11 +612,11 @@ export default function CampaignsPage() {
         </section>
 
         {/* Campaigns List */}
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-          <div className="mb-4 flex items-center justify-between">
+        <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h2 className="text-lg font-semibold text-sky-400">Your Campaigns</h2>
             {campaigns.length > 0 && (
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 {selectedCampaigns.size > 0 && (
                   <>
                     <span className="text-sm text-slate-400">
@@ -640,7 +640,7 @@ export default function CampaignsPage() {
               </div>
             )}
           </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {campaigns.length === 0 ? (
               <p className="col-span-full text-center text-slate-400">No campaigns yet. Create one above!</p>
             ) : (
@@ -670,8 +670,8 @@ export default function CampaignsPage() {
                     className="cursor-pointer pr-10"
                   >
                   <div className="mb-3">
-                    <h3 className="font-semibold text-slate-200">{item.name}</h3>
-                    <div className="mt-1 flex items-center gap-2">
+                    <h3 className="font-semibold text-slate-200 break-all">{item.name}</h3>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
                       <span className={`rounded px-2 py-0.5 text-[10px] font-semibold ${
                         item.status === "ACTIVE" ? "bg-green-500/20 text-green-400" :
                         item.status === "PAUSED" ? "bg-yellow-500/20 text-yellow-400" :
