@@ -22,6 +22,11 @@ const randomDelayMs = (minSeconds: number, maxSeconds: number): number => {
   return (Math.floor(Math.random() * (max - min + 1)) + min) * 1000;
 };;
 
+const pauseCampaign = async (campaignId: string, reason: string, meta: Record<string, unknown> = {}) => {
+  logger.warn(reason, { campaignId, ...meta });
+  await prisma.campaigns.update({ where: { id: campaignId }, data: { status: CampaignStatus.PAUSED } });
+};
+
 const isCampaignAllowedNow = (campaign: { start_time: Date | null }): boolean => {
   if (!campaign.start_time) {
     return true;
@@ -143,12 +148,25 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
     include: { gmail_accounts: true }
   });
 
-  if (!campaign || !isCampaignAllowedNow(campaign)) {
+  if (!campaign) {
+    logger.warn("Skipping campaign because it could not be loaded", { campaignId });
+    return;
+  }
+
+  if (!isCampaignAllowedNow(campaign)) {
+    logger.info("Skipping campaign because start time has not been reached yet", {
+      campaignId: campaign.id,
+      startTime: campaign.start_time?.toISOString() ?? null
+    });
     return;
   }
 
   if (campaign.gmail_accounts.status !== GmailAccountStatus.ACTIVE) {
-    await prisma.campaigns.update({ where: { id: campaign.id }, data: { status: CampaignStatus.PAUSED } });
+    await pauseCampaign(campaign.id, "Campaign paused because the Gmail account is not active", {
+      gmailAccountId: campaign.gmail_account_id,
+      gmailAccountEmail: campaign.gmail_accounts.email,
+      gmailAccountStatus: campaign.gmail_accounts.status
+    });
     return;
   }
 
@@ -236,6 +254,11 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
   if (!accessToken || expiresAt.getTime() <= Date.now() + 60_000) {
     const refreshed = await gmailService.refreshAccessToken(refreshToken);
     if (!refreshed) {
+      logger.warn("Campaign paused because Gmail access token refresh failed", {
+        campaignId: campaign.id,
+        gmailAccountId: campaign.gmail_account_id,
+        gmailAccountEmail: campaign.gmail_accounts.email
+      });
       await prisma.gmail_accounts.update({ where: { id: campaign.gmail_account_id }, data: { status: GmailAccountStatus.ERROR } });
       await prisma.campaigns.update({ where: { id: campaign.id }, data: { status: CampaignStatus.PAUSED } });
       await prisma.leads.update({ where: { id: lead.id }, data: { status: LeadStatus.FAILED } });
@@ -298,6 +321,11 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
 
   const updateData: Prisma.campaignsUpdateInput = { failure_count: { increment: 1 } };
   if (response.rateLimited) {
+    logger.warn("Campaign paused because Gmail rate limit was reached", {
+      campaignId: campaign.id,
+      gmailAccountId: campaign.gmail_account_id,
+      gmailAccountEmail: campaign.gmail_accounts.email
+    });
     updateData.status = CampaignStatus.PAUSED;
     await prisma.gmail_accounts.update({ where: { id: campaign.gmail_account_id }, data: { status: GmailAccountStatus.ERROR } });
   }
@@ -305,6 +333,13 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
 
   const campaignAfter = await prisma.campaigns.findUnique({ where: { id: campaign.id } });
   if ((campaignAfter?.failure_count ?? 0) >= env.CAMPAIGN_FAILURE_PAUSE_THRESHOLD) {
+    logger.warn("Campaign paused because failure threshold was reached", {
+      campaignId: campaign.id,
+      failureCount: campaignAfter?.failure_count ?? 0,
+      threshold: env.CAMPAIGN_FAILURE_PAUSE_THRESHOLD,
+      gmailAccountId: campaign.gmail_account_id,
+      gmailAccountEmail: campaign.gmail_accounts.email
+    });
     await prisma.campaigns.update({ where: { id: campaign.id }, data: { status: CampaignStatus.PAUSED } });
   }
 

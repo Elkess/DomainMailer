@@ -640,7 +640,7 @@ export default function CampaignsPage() {
               </div>
             )}
           </div>
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {campaigns.length === 0 ? (
               <p className="col-span-full text-center text-slate-400">No campaigns yet. Create one above!</p>
             ) : (
@@ -671,6 +671,16 @@ export default function CampaignsPage() {
                   >
                   <div className="mb-3">
                     <h3 className="font-semibold text-slate-200 break-all">{item.name}</h3>
+                    {item.gmailAccountEmail && (
+                      <div className="mt-1 text-xs text-slate-400 break-all">
+                        Sender: {item.gmailAccountEmail}
+                        {item.gmailAccountStatus && item.gmailAccountStatus !== "ACTIVE" && (
+                          <span className="ml-2 rounded bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-400">
+                            {item.gmailAccountStatus}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="mt-1 flex flex-wrap items-center gap-2">
                       <span className={`rounded px-2 py-0.5 text-[10px] font-semibold ${
                         item.status === "ACTIVE" ? "bg-green-500/20 text-green-400" :
@@ -688,7 +698,7 @@ export default function CampaignsPage() {
                     </div>
                   </div>
 
-                  <div className="mb-3 grid grid-cols-3 gap-2 text-xs">
+                  <div className="mb-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
                     <div>
                       <div className="text-slate-400">Pending</div>
                       <div className="font-semibold text-slate-200">{stats.pending}</div>

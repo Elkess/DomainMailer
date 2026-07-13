@@ -25,6 +25,8 @@ export interface Campaign {
   followUp3DelayHours?: number | null;
   followUp4Body?: string | null;
   followUp4DelayHours?: number | null;
+  gmailAccountEmail?: string;
+  gmailAccountStatus?: string | null;
 }
 
 export interface CampaignStats {

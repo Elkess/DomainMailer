@@ -7,6 +7,43 @@ import { dedupeLeadsByEmail, parseLeadCsv } from "../lib/csv";
 const CampaignStatus = { DRAFT: 'DRAFT', ACTIVE: 'ACTIVE', PAUSED: 'PAUSED', COMPLETED: 'COMPLETED' } as const;
 const LeadStatus = { PENDING: 'PENDING', QUEUED: 'QUEUED', SENDING: 'SENDING', SENT: 'SENT', FAILED: 'FAILED' } as const;
 
+const mapCampaign = (campaign: {
+  id: string;
+  name: string;
+  status: string | null;
+  daily_limit: number;
+  start_time: Date | null;
+  subject_template: string;
+  body_template: string;
+  delay_min_seconds: number;
+  delay_max_seconds: number;
+  follow_up2_body: string | null;
+  follow_up2_delay_hours: number | null;
+  follow_up3_body: string | null;
+  follow_up3_delay_hours: number | null;
+  follow_up4_body: string | null;
+  follow_up4_delay_hours: number | null;
+  gmail_accounts: { email: string; status: string | null };
+}) => ({
+  id: campaign.id,
+  name: campaign.name,
+  status: campaign.status,
+  dailyLimit: campaign.daily_limit,
+  startTime: campaign.start_time?.toISOString() || null,
+  subjectTemplate: campaign.subject_template,
+  bodyTemplate: campaign.body_template,
+  delayMinSeconds: campaign.delay_min_seconds,
+  delayMaxSeconds: campaign.delay_max_seconds,
+  followUp2Body: campaign.follow_up2_body,
+  followUp2DelayHours: campaign.follow_up2_delay_hours,
+  followUp3Body: campaign.follow_up3_body,
+  followUp3DelayHours: campaign.follow_up3_delay_hours,
+  followUp4Body: campaign.follow_up4_body,
+  followUp4DelayHours: campaign.follow_up4_delay_hours,
+  gmailAccountEmail: campaign.gmail_accounts.email,
+  gmailAccountStatus: campaign.gmail_accounts.status
+});
+
 export const campaignService = {
   async createCampaign(input: {
     userId: string;
@@ -36,7 +73,7 @@ export const campaignService = {
     // The worker will check if it's time to start sending via isCampaignAllowedNow()
     const status = input.startTime ? CampaignStatus.ACTIVE : CampaignStatus.DRAFT;
 
-    return prisma.campaigns.create({
+    const campaign = await prisma.campaigns.create({
       data: {
         id: randomUUID(),
         user_id: input.userId,
@@ -56,8 +93,18 @@ export const campaignService = {
         follow_up4_body: input.follow_up4_body,
         follow_up4_delay_hours: input.follow_up4_delay_hours,
         status
+      },
+      include: {
+        gmail_accounts: {
+          select: {
+            email: true,
+            status: true
+          }
+        }
       }
     });
+
+    return mapCampaign(campaign as any);
   },
 
   async listCampaigns(userId: string) {
@@ -73,6 +120,12 @@ export const campaignService = {
         body_template: true,
         delay_min_seconds: true,
         delay_max_seconds: true,
+        gmail_accounts: {
+          select: {
+            email: true,
+            status: true
+          }
+        },
         follow_up2_body: true,
         follow_up2_delay_hours: true,
         follow_up3_body: true,
@@ -89,22 +142,8 @@ export const campaignService = {
     });
 
     // Map snake_case fields to camelCase for frontend
-    return campaigns.map(campaign => ({
-      id: campaign.id,
-      name: campaign.name,
-      status: campaign.status,
-      dailyLimit: campaign.daily_limit,
-      startTime: campaign.start_time?.toISOString() || null,
-      subjectTemplate: campaign.subject_template,
-      bodyTemplate: campaign.body_template,
-      delayMinSeconds: campaign.delay_min_seconds,
-      delayMaxSeconds: campaign.delay_max_seconds,
-      followUp2Body: campaign.follow_up2_body,
-      followUp2DelayHours: campaign.follow_up2_delay_hours,
-      followUp3Body: campaign.follow_up3_body,
-      followUp3DelayHours: campaign.follow_up3_delay_hours,
-      followUp4Body: campaign.follow_up4_body,
-      followUp4DelayHours: campaign.follow_up4_delay_hours,
+    return campaigns.map((campaign) => ({
+      ...mapCampaign(campaign as any),
       _count: campaign._count
     }));
   },

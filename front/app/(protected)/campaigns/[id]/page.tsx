@@ -217,6 +217,16 @@ export default function CampaignDetailPage() {
           <div className="mb-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="flex-1">
               <h1 className="text-xl sm:text-2xl font-bold text-sky-400 break-all">{campaign.name}</h1>
+              {campaign.gmailAccountEmail && (
+                <div className="mt-2 text-sm text-slate-400 break-all">
+                  Sender: {campaign.gmailAccountEmail}
+                  {campaign.gmailAccountStatus && campaign.gmailAccountStatus !== "ACTIVE" && (
+                    <span className="ml-2 rounded bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-400">
+                      {campaign.gmailAccountStatus}
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
                 <span className={`rounded px-2 py-1 text-xs font-semibold ${
                   campaign.status === "ACTIVE" ? "bg-green-500/20 text-green-400" :
@@ -276,7 +286,7 @@ export default function CampaignDetailPage() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg bg-slate-950 p-4">
               <div className="text-xs text-slate-400">Pending</div>
               <div className="text-2xl font-bold text-slate-200">{stats.pending}</div>
