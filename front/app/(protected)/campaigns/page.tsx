@@ -27,6 +27,14 @@ export default function CampaignsPage() {
   const [importingSheet, setImportingSheet] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [sheetForm, setSheetForm] = useState({ url: "", range: "Sheet1!A:Z" });
+  const [collapsed, setCollapsed] = useState({
+    gmailAccounts: false,
+    createForm: false,
+    recipients: false,
+    followUps: false,
+    campaignList: false,
+  });
+
   const [form, setForm] = useState({
     gmailAccountId: "",
     name: "",
@@ -283,16 +291,27 @@ export default function CampaignsPage() {
 
         {/* Gmail Accounts */}
         <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
-          <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h2 className="text-lg font-semibold text-sky-400">Gmail Accounts</h2>
-            <button
-              onClick={onConnectGmail}
-              className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500 transition"
-            >
-              + Connect Gmail
-            </button>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setCollapsed((p) => ({ ...p, gmailAccounts: !p.gmailAccounts }))}
+                className="text-slate-400 hover:text-slate-200 transition text-lg leading-none"
+              >
+                {collapsed.gmailAccounts ? "▶" : "▼"}
+              </button>
+              <h2 className="text-lg font-semibold text-sky-400">Gmail Accounts</h2>
+            </div>
+            {!collapsed.gmailAccounts && (
+              <button
+                onClick={onConnectGmail}
+                className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500 transition"
+              >
+                + Connect Gmail
+              </button>
+            )}
           </div>
-          <div className="space-y-2">
+          {!collapsed.gmailAccounts && (
+          <div className="mt-4 space-y-2">
             {accounts.length === 0 ? (
               <p className="text-sm text-slate-400">No Gmail accounts connected yet.</p>
             ) : (
@@ -312,11 +331,21 @@ export default function CampaignsPage() {
               ))
             )}
           </div>
+          )}
         </section>
 
         {/* Create Campaign Form */}
         <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
-          <h2 className="mb-4 text-lg font-semibold text-sky-400">Create New Campaign</h2>
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => setCollapsed((p) => ({ ...p, createForm: !p.createForm }))}
+              className="text-slate-400 hover:text-slate-200 transition text-lg leading-none"
+            >
+              {collapsed.createForm ? "▶" : "▼"}
+            </button>
+            <h2 className="text-lg font-semibold text-sky-400">Create New Campaign</h2>
+          </div>
+          {!collapsed.createForm && (
           <form className="grid gap-6 md:grid-cols-2" onSubmit={onCreateCampaign}>
             <div className="flex flex-col gap-1.5 md:col-span-2 sm:col-span-1">
               <label className="text-xs font-medium uppercase tracking-wider text-slate-400">Campaign Name</label>
@@ -453,7 +482,18 @@ export default function CampaignsPage() {
 
             {/* Email Recipients Section - REQUIRED */}
             <div className="md:col-span-2 rounded-lg border border-amber-600 bg-amber-950/20 p-4 sm:p-6">
-              <h3 className="mb-4 text-base font-semibold text-amber-400">📧 Add Recipients (Required)</h3>
+              <div className="flex items-center gap-3 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setCollapsed((p) => ({ ...p, recipients: !p.recipients }))}
+                  className="text-slate-400 hover:text-slate-200 transition text-lg leading-none"
+                >
+                  {collapsed.recipients ? "▶" : "▼"}
+                </button>
+                <h3 className="text-base font-semibold text-amber-400">📧 Add Recipients (Required)</h3>
+              </div>
+              {!collapsed.recipients && (
+              <>
               <p className="mb-6 text-xs text-slate-400">Add at least one email address to create the campaign. Choose from CSV upload, Google Sheets, or manual entry.</p>
               
               {/* Upload CSV */}
@@ -517,11 +557,24 @@ export default function CampaignsPage() {
               </div>
               
               <p className="mt-4 text-[10px] text-amber-400/80">⚠️ At least one recipient method must be provided (CSV, Google Sheets, or manual entry)</p>
+              </>
+              )}
             </div>
 
             {/* Follow-up Messages Section */}
             <div className="md:col-span-2 rounded-lg border border-slate-700 bg-slate-950 p-4">
-              <h3 className="mb-4 text-sm font-semibold text-amber-400">📧 Follow-up Sequence (Optional)</h3>
+              <div className="flex items-center gap-3 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setCollapsed((p) => ({ ...p, followUps: !p.followUps }))}
+                  className="text-slate-400 hover:text-slate-200 transition text-lg leading-none"
+                >
+                  {collapsed.followUps ? "▶" : "▼"}
+                </button>
+                <h3 className="text-sm font-semibold text-amber-400">📧 Follow-up Sequence (Optional)</h3>
+              </div>
+              {!collapsed.followUps && (
+              <>
               <p className="mb-4 text-xs text-slate-400">Set up to 3 follow-up messages that will be sent as replies if the recipient doesn't respond. Each follow-up will stop if they reply.</p>
               
               {/* Follow-up 2 */}
@@ -598,6 +651,8 @@ export default function CampaignsPage() {
                   onChange={(e) => setForm({ ...form, followUp4Body: e.target.value })}
                 />
               </div>
+              </>
+              )}
             </div>
 
             <div className="md:col-span-2">
@@ -609,12 +664,23 @@ export default function CampaignsPage() {
               </button>
             </div>
           </form>
+          )}
         </section>
 
         {/* Campaigns List */}
         <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
-          <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => setCollapsed((p) => ({ ...p, campaignList: !p.campaignList }))}
+              className="text-slate-400 hover:text-slate-200 transition text-lg leading-none"
+            >
+              {collapsed.campaignList ? "▶" : "▼"}
+            </button>
             <h2 className="text-lg font-semibold text-sky-400">Your Campaigns</h2>
+          </div>
+          {!collapsed.campaignList && (
+          <>
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             {campaigns.length > 0 && (
               <div className="flex flex-wrap items-center gap-3">
                 {selectedCampaigns.size > 0 && (
@@ -726,6 +792,8 @@ export default function CampaignsPage() {
               ))
             )}
           </div>
+          </>
+          )}
         </section>
       </div>
     </div>
