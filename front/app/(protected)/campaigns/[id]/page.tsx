@@ -18,7 +18,7 @@ export default function CampaignDetailPage() {
   
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [stats, setStats] = useState<CampaignStats | null>(null);
-  const [leads, setLeads] = useState<Array<{ id: string; email: string; status: string; sentAt: string | null; createdAt: string; currentSequenceStep?: number }>>([]);
+  const [leads, setLeads] = useState<Array<{ id: string; email: string; status: string; sentAt: string | null; createdAt: string; currentSequenceStep?: number; errorMessage?: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [error, setError] = useState("");
@@ -575,7 +575,7 @@ export default function CampaignDetailPage() {
                         )}
                       </div>
                       <div className="text-xs text-slate-400">
-                        {lead.status} {lead.sentAt && `• Sent ${new Date(lead.sentAt).toLocaleString()}`}
+                        {lead.status === "FAILED" && lead.errorMessage ? lead.errorMessage : lead.status} {lead.sentAt && `• Sent ${new Date(lead.sentAt).toLocaleString()}`}
                       </div>
                     </div>
                     <button
