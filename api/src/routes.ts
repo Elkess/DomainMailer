@@ -510,7 +510,8 @@ export const createRoutes = () => {
         status: true,
         sent_at: true,
         created_at: true,
-        currentSequenceStep: true
+        currentSequenceStep: true,
+        error_message: true
       },
       orderBy: { created_at: "desc" }
     });

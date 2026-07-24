@@ -371,7 +371,7 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
       subject: subject,
       body: body,
       status: "failed",
-      error_message: response.rateLimited ? "Gmail 429 rate limit" : "Send failed",
+      error_message: response.rateLimited ? "Gmail 429 rate limit" : `Send failed: ${response.body?.substring(0, 200) || "Unknown error"}`,
       bounce_status: "pending"
     }
   });
