@@ -122,5 +122,5 @@ export const api = {
   deleteLead: (leadId: string) =>
     request<{ ok: true }>("/leads/delete", { method: "POST", body: JSON.stringify({ leadId }) }),
   getLeads: (campaignId: string) =>
-    request<{ leads: Array<{ id: string; email: string; status: string; sentAt: string | null; createdAt: string; errorMessage?: string | null }> }>(`/campaigns/${campaignId}/leads`)
+    request<{ leads: Array<{ id: string; email: string; status: string; sentAt: string | null; createdAt: string; error_message?: string | null }> }>(`/campaigns/${campaignId}/leads`)
 };
