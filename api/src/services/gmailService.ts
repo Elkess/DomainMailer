@@ -32,7 +32,6 @@ export const gmailService = {
     ensureGmailEnabled();
     return createOAuth().generateAuthUrl({
       access_type: "offline",
-      prompt: "consent",
       scope: [
         "https://www.googleapis.com/auth/gmail.send", 
         "https://www.googleapis.com/auth/userinfo.email",

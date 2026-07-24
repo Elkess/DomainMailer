@@ -351,6 +351,15 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
     });
     updateData.status = CampaignStatus.PAUSED;
     await prisma.gmail_accounts.update({ where: { id: campaign.gmail_account_id }, data: { status: GmailAccountStatus.ERROR } });
+  } else if (response.statusCode === 403) {
+    logger.warn("Campaign paused because Gmail permission error", {
+      campaignId: campaign.id,
+      gmailAccountId: campaign.gmail_account_id,
+      gmailAccountEmail: campaign.gmail_accounts.email,
+      error: response.body
+    });
+    updateData.status = CampaignStatus.PAUSED;
+    await prisma.gmail_accounts.update({ where: { id: campaign.gmail_account_id }, data: { status: GmailAccountStatus.ERROR } });
   }
   await prisma.campaigns.update({ where: { id: campaign.id }, data: updateData });
 
