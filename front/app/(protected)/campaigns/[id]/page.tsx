@@ -575,7 +575,7 @@ export default function CampaignDetailPage() {
                         )}
                       </div>
                       <div className="text-xs text-slate-400">
-                        {lead.status === "FAILED" && lead.errorMessage ? lead.errorMessage : lead.status} {lead.sentAt && `• Sent ${new Date(lead.sentAt).toLocaleString()}`}
+                        {lead.status === "FAILED" && lead.errorMessage ? lead.errorMessage : "Status: " + lead.status} {lead.sentAt && `• Sent ${new Date(lead.sentAt).toLocaleString()}`}
                       </div>
                     </div>
                     <button
