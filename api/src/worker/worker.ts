@@ -278,7 +278,13 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
       });
       await prisma.gmail_accounts.update({ where: { id: campaign.gmail_account_id }, data: { status: GmailAccountStatus.ERROR } });
       await prisma.campaigns.update({ where: { id: campaign.id }, data: { status: CampaignStatus.PAUSED } });
-      await prisma.leads.update({ where: { id: lead.id }, data: { status: LeadStatus.FAILED } });
+      await prisma.leads.update({ 
+        where: { id: lead.id }, 
+        data: { 
+          status: LeadStatus.FAILED,
+          error_message: "Gmail access token refresh failed"
+        } 
+      });
       return;
     }
     accessToken = refreshed.accessToken;
@@ -360,7 +366,15 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
     await prisma.campaigns.update({ where: { id: campaign.id }, data: { status: CampaignStatus.PAUSED } });
   }
 
-  await prisma.leads.update({ where: { id: lead.id }, data: { status: LeadStatus.FAILED } });
+  const errorMessage = response.rateLimited ? "Gmail 429 rate limit" : `Send failed: ${response.body?.substring(0, 200) || "Unknown error"}`;
+  
+  await prisma.leads.update({ 
+    where: { id: lead.id }, 
+    data: { 
+      status: LeadStatus.FAILED,
+      error_message: errorMessage
+    } 
+  });
   await prisma.email_logs.create({
     data: {
       id: randomUUID(),
@@ -371,7 +385,7 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
       subject: subject,
       body: body,
       status: "failed",
-      error_message: response.rateLimited ? "Gmail 429 rate limit" : `Send failed: ${response.body?.substring(0, 200) || "Unknown error"}`,
+      error_message: errorMessage,
       bounce_status: "pending"
     }
   });
