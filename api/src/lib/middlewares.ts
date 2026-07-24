@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import rateLimit from "express-rate-limit";
 import { env } from "../config/env";
+import { logger } from "./logger";
 
 export const apiRateLimit = rateLimit({
   windowMs: env.API_RATE_LIMIT_WINDOW_MS,
@@ -10,8 +11,12 @@ export const apiRateLimit = rateLimit({
   message: { error: "Too many requests" }
 });
 
-export const errorHandler = (err: Error, _req: Request, res: Response, _next: NextFunction): void => {
+export const errorHandler = (err: Error, req: Request, res: Response, _next: NextFunction): void => {
   const message = err.message || "Internal server error";
+
+  // Log the error with full request context
+  logger.requestError(req, err, { errorType: "express-error-handler" });
+
   if (message === "Invalid payload") {
     res.status(400).json({ error: message });
     return;

@@ -8,6 +8,7 @@ import { errorHandler, apiRateLimit } from "./lib/middlewares";
 import { createRoutes } from "./routes";
 import { campaignEvents } from "./lib/eventEmitter";
 import { prisma } from "./lib/prisma";
+import { logger } from "./lib/logger";
 
 const app = express();
 
@@ -28,14 +29,45 @@ app.use("/api", createRoutes());
 app.use(errorHandler);
 
 app.listen(env.PORT, () => {
-  console.log(`✅ DomainMailer API running on port ${env.PORT}`);
-  console.log(`📡 Using SQLite for cross-process events`);
-  console.log(`🔗 Frontend URL: ${env.FRONTEND_URL}`);
+  logger.info("DomainMailer API server started", {
+    port: env.PORT,
+    frontendUrl: env.FRONTEND_URL,
+    nodeEnv: env.NODE_ENV
+  });
+});
+
+// Process-level error handlers
+process.on("unhandledRejection", (reason: unknown, promise: Promise<unknown>) => {
+  const formatted = reason instanceof Error ? reason : new Error(String(reason));
+  logger.error("UNHANDLED PROMISE REJECTION", {
+    error: formatted.message,
+    stack: formatted.stack,
+    promise: String(promise)
+  });
+});
+
+process.on("uncaughtException", (error: Error) => {
+  logger.error("UNCAUGHT EXCEPTION", {
+    error: error.message,
+    stack: error.stack
+  });
+  // Give logger time to flush, then exit
+  setTimeout(() => process.exit(1), 1000);
 });
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('⚠️  SIGTERM received, closing connections...');
+process.on("SIGTERM", async () => {
+  logger.warn("SIGTERM received, shutting down gracefully...");
   await campaignEvents.close();
+  await prisma.$disconnect();
+  logger.info("Server shutdown complete");
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  logger.warn("SIGINT received, shutting down gracefully...");
+  await campaignEvents.close();
+  await prisma.$disconnect();
+  logger.info("Server shutdown complete");
   process.exit(0);
 });

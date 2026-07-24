@@ -25,6 +25,13 @@ export default function CampaignDetailPage() {
   const [showLeads, setShowLeads] = useState(false);
   const [countdown, setCountdown] = useState<string>("");
 
+  // Add recipients state
+  const [showAddRecipients, setShowAddRecipients] = useState(false);
+  const [newEmails, setNewEmails] = useState("");
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [addingLeads, setAddingLeads] = useState(false);
+  const [addResult, setAddResult] = useState("");
+
   const loadCampaign = async () => {
     try {
       setLoading(true);
@@ -60,7 +67,7 @@ export default function CampaignDetailPage() {
 
   useEffect(() => {
     loadCampaign();
-    loadLeads(); // Load leads to determine current step
+    loadLeads();
   }, [campaignId]);
 
   useEffect(() => {
@@ -178,6 +185,42 @@ export default function CampaignDetailPage() {
     }
   };
 
+  const handleAddEmails = async () => {
+    if (!newEmails.trim() && !csvFile) return;
+    setAddingLeads(true);
+    setAddResult("");
+    setError("");
+
+    try {
+      let totalInserted = 0;
+      let totalSkipped = 0;
+
+      // 1. Add manual emails
+      if (newEmails.trim()) {
+        const result = await api.addLead(campaignId, { emails: newEmails });
+        totalInserted += result.inserted;
+        totalSkipped += result.skipped;
+      }
+
+      // 2. Upload CSV if provided
+      if (csvFile) {
+        const text = await csvFile.text();
+        const result = await api.uploadLeads(campaignId, text);
+        totalInserted += result.inserted;
+      }
+
+      setAddResult(`✅ Added ${totalInserted} recipient(s)${totalSkipped > 0 ? ` (${totalSkipped} skipped - already exist)` : ""}`);
+      setNewEmails("");
+      setCsvFile(null);
+      await loadLeads();
+      await loadCampaign();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setAddingLeads(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -209,6 +252,13 @@ export default function CampaignDetailPage() {
         {error && (
           <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">
             {error}
+          </div>
+        )}
+
+        {/* Success message */}
+        {addResult && (
+          <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-4 text-sm text-green-400">
+            {addResult}
           </div>
         )}
 
@@ -417,10 +467,84 @@ export default function CampaignDetailPage() {
           </div>
         </section>
 
+        {/* Add Recipients Section */}
+        <section className="rounded-xl border border-sky-700/50 bg-slate-900 p-4 sm:p-6">
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowAddRecipients(!showAddRecipients)}
+                className="text-slate-400 hover:text-slate-200 transition text-lg leading-none"
+              >
+                {showAddRecipients ? "▼" : "▶"}
+              </button>
+              <h2 className="text-lg font-semibold text-sky-400">📧 Add More Recipients</h2>
+            </div>
+            <span className="text-xs text-slate-500">Add new emails to this campaign at any time</span>
+          </div>
+
+          {showAddRecipients && (
+            <div className="space-y-4">
+              {/* Manual email entry */}
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-slate-300">Enter Email Addresses</h3>
+                <textarea
+                  className="w-full min-h-[100px] rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm transition focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  placeholder="Enter email addresses (one per line)&#10;example1@domain.com&#10;example2@company.com"
+                  value={newEmails}
+                  onChange={(e) => setNewEmails(e.target.value)}
+                />
+              </div>
+
+              {/* CSV upload */}
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-slate-300">Or Upload CSV File</h3>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <label className="inline-block cursor-pointer rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-sm hover:bg-slate-800 transition text-center sm:text-left">
+                    {csvFile ? csvFile.name : "Choose CSV File"}
+                    <input
+                      type="file"
+                      accept=".csv"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setCsvFile(file);
+                      }}
+                    />
+                  </label>
+                  {csvFile && (
+                    <button
+                      type="button"
+                      onClick={() => setCsvFile(null)}
+                      className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-400 hover:bg-slate-800 transition"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 text-[10px] text-slate-500">CSV must include <code className="text-sky-400">email</code> and <code className="text-sky-400">company_name</code> columns</p>
+              </div>
+
+              {/* Submit button */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleAddEmails}
+                  disabled={addingLeads || (!newEmails.trim() && !csvFile)}
+                  className="rounded-lg bg-sky-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {addingLeads ? "Adding..." : "Add Recipients"}
+                </button>
+                {!newEmails.trim() && !csvFile && (
+                  <span className="text-xs text-slate-500">Enter emails or upload a CSV</span>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+
         {/* Leads Section */}
         <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
           <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h2 className="text-lg font-semibold text-sky-400">Recipients</h2>
+            <h2 className="text-lg font-semibold text-sky-400">Recipients ({leads.length})</h2>
             <button
               onClick={() => setShowLeads(!showLeads)}
               className="rounded-lg border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800 transition"

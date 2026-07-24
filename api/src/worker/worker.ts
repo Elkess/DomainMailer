@@ -7,6 +7,23 @@ import { decrypt, encrypt } from "../lib/security";
 import { gmailService } from "../services/gmailService";
 import { campaignEvents } from "../lib/eventEmitter";
 
+// Process-level error handlers for the worker process
+process.on("unhandledRejection", (reason: unknown) => {
+  const formatted = reason instanceof Error ? reason : new Error(String(reason));
+  logger.error("WORKER UNHANDLED PROMISE REJECTION", {
+    error: formatted.message,
+    stack: formatted.stack
+  });
+});
+
+process.on("uncaughtException", (error: Error) => {
+  logger.error("WORKER UNCAUGHT EXCEPTION", {
+    error: error.message,
+    stack: error.stack
+  });
+  setTimeout(() => process.exit(1), 1000);
+});
+
 // Use strings instead of Prisma enums for SQLite compatibility
 const CampaignStatus = { DRAFT: 'DRAFT', ACTIVE: 'ACTIVE', PAUSED: 'PAUSED', COMPLETED: 'COMPLETED' } as const;
 const LeadStatus = { PENDING: 'PENDING', QUEUED: 'QUEUED', SENDING: 'SENDING', SENT: 'SENT', FAILED: 'FAILED' } as const;
@@ -426,7 +443,10 @@ const runLoop = async (): Promise<void> => {
         await sleep(randomWait);
       }
     } catch (error: any) {
-      logger.error("Worker loop error", { error: error.message });
+      logger.error("Worker loop error", {
+        error: error.message || String(error),
+        stack: error.stack
+      });
       await sleep(3000);
     }
   }
