@@ -475,19 +475,39 @@ const runLoop = async (): Promise<void> => {
   }
 };
 
-const shutdown = async () => {
-  logger.info("⚠️  Shutting down worker...");
+const shutdown = async (reason: string = "SIGTERM/SIGINT received") => {
+  logger.info("⚠️  Shutting down worker...", { reason });
   running = false;
+  
+  // Notify users about the shutdown
+  try {
+    const activeCampaigns = await prisma.campaigns.findMany({ 
+      where: { status: CampaignStatus.ACTIVE }, 
+      select: { user_id: true } 
+    });
+    const userIds = [...new Set(activeCampaigns.map(c => c.user_id))];
+    for (const userId of userIds) {
+      await campaignEvents.emitWorkerShutdown(userId, reason);
+    }
+    if (userIds.length === 0) {
+      await campaignEvents.emitWorkerShutdown(null, reason);
+    }
+  } catch (err: any) {
+    logger.error("Failed to emit shutdown notification", { error: err.message });
+  }
+  
   await campaignEvents.close();
   await prisma.$disconnect();
   logger.info("✅ Worker shutdown complete");
   process.exit(0);
 };
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+process.on("SIGINT", () => shutdown("SIGINT received"));
+process.on("SIGTERM", () => shutdown("SIGTERM received"));
 
 runLoop().catch((error: Error) => {
   logger.error("Worker failed to start", { error: error.message });
+  // Also notify on startup failure
+  campaignEvents.emitWorkerShutdown(null, `Worker failed to start: ${error.message}`).catch(() => {});
   process.exit(1);
 });

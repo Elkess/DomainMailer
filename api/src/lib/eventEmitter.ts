@@ -7,6 +7,11 @@ interface CampaignUpdateEvent {
   timestamp: number;
 }
 
+interface WorkerShutdownEvent {
+  reason: string;
+  timestamp: number;
+}
+
 class CampaignEventEmitter extends EventEmitter {
   private lastCheckTime = Date.now();
 
@@ -34,6 +39,33 @@ class CampaignEventEmitter extends EventEmitter {
       console.log("✅ Stored notification in database");
     } catch (err: any) {
       console.error("❌ Failed to store notification:", err.message);
+    }
+  }
+
+  async emitWorkerShutdown(userId: string | null, reason: string) {
+    const event: WorkerShutdownEvent = {
+      reason,
+      timestamp: Date.now()
+    };
+    
+    console.log(`⚠️ Worker shutdown event:`, event);
+    
+    // Emit locally
+    this.emit("worker:shutdown", event);
+    
+    // Store in database for cross-process communication
+    try {
+      // Store a special notification with worker_shutdown prefix in campaign_id
+      await (prisma as any).campaign_notifications.create({
+        data: {
+          campaign_id: `worker_shutdown:${reason.substring(0, 100)}`,
+          user_id: userId || "system",
+          created_at: new Date()
+        }
+      });
+      console.log("✅ Stored worker shutdown notification in database");
+    } catch (err: any) {
+      console.error("❌ Failed to store worker shutdown notification:", err.message);
     }
   }
 
@@ -84,6 +116,14 @@ class CampaignEventEmitter extends EventEmitter {
 
   offCampaignUpdate(handler: (event: CampaignUpdateEvent) => void) {
     this.off("campaign:update", handler);
+  }
+
+  onWorkerShutdown(handler: (event: WorkerShutdownEvent) => void) {
+    this.on("worker:shutdown", handler);
+  }
+
+  offWorkerShutdown(handler: (event: WorkerShutdownEvent) => void) {
+    this.off("worker:shutdown", handler);
   }
 
   async close() {
