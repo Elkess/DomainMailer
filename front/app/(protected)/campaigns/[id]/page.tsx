@@ -134,7 +134,7 @@ export default function CampaignDetailPage() {
 
   // SSE for real-time updates
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("domainmailer_token");
     if (!token) return;
 
     const eventSource = new EventSource(`${apiBase.replace('/api', '')}/api/campaigns/events?token=${token}`);
