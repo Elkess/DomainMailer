@@ -118,7 +118,7 @@ export const api = {
       body: JSON.stringify({ campaignId, gmailAccountId, sheetUrl, range }) 
     }),
   addLead: (campaignId: string, lead: { emails: string }) =>
-    request<{ leads: Array<{ id: string }>; inserted: number; total: number; skipped: number }>("/leads/add", { method: "POST", body: JSON.stringify({ campaignId, ...lead }) }),
+    request<{ leads?: Array<{ id: string }>; inserted: number; total: number; skipped: number; invalidLines?: string[] }>("/leads/add", { method: "POST", body: JSON.stringify({ campaignId, ...lead }) }),
   deleteLead: (leadId: string) =>
     request<{ ok: true }>("/leads/delete", { method: "POST", body: JSON.stringify({ leadId }) }),
   getLeads: (campaignId: string) =>

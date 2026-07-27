@@ -36,27 +36,34 @@ export const parseLeadCsv = (csv: string): ParsedLead[] => {
     return [];
   }
 
-  const headers = lines[0].split(",").map((header) => header.trim());
+  const headers = lines[0]
+    .split(",")
+    .map((header) => header.trim().replace(/^["']|["']$/g, "").toLowerCase());
   
-  if (!headers.includes("email")) {
-    throw new Error("Missing required CSV column: email");
+  const emailIndex = headers.findIndex(
+    (h) => h === "email" || h === "email address" || h === "email_address" || h === "e-mail" || h === "mail"
+  );
+
+  if (emailIndex === -1) {
+    throw new Error("Missing required CSV column: email (accepts email, Email, Email Address, e-mail)");
   }
 
+  const firstNameIndex = headers.findIndex((h) => h === "first_name" || h === "firstname" || h === "first name" || h === "name");
+  const companyIndex = headers.findIndex((h) => h === "company_name" || h === "companyname" || h === "company" || h === "company name");
+  const domainIndex = headers.findIndex((h) => h === "domain_name" || h === "domainname" || h === "domain" || h === "website");
+
   return lines.slice(1).map((line) => {
-    const values = line.split(",").map((value) => value.trim());
-    const row: Record<string, string> = {};
-    headers.forEach((header, index) => {
-      row[header] = values[index] ?? "";
-    });
+    const values = line.split(",").map((value) => value.trim().replace(/^["']|["']$/g, ""));
+    const rawEmail = values[emailIndex] ? values[emailIndex].trim().toLowerCase() : "";
 
     return {
-      companyName: row.company_name || "",
-      domainName: row.domain_name || "",
-      firstName: row.first_name || "",
-      email: row.email.trim().toLowerCase(),
+      companyName: companyIndex !== -1 ? (values[companyIndex] || "") : "",
+      domainName: domainIndex !== -1 ? (values[domainIndex] || "") : "",
+      firstName: firstNameIndex !== -1 ? (values[firstNameIndex] || "") : "",
+      email: rawEmail,
       customFields: {}
     };
-  });
+  }).filter((lead) => lead.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.email));
 };
 
 export const parseSheetData = (rows: string[][]): ParsedLead[] => {
@@ -64,10 +71,14 @@ export const parseSheetData = (rows: string[][]): ParsedLead[] => {
     return [];
   }
 
-  const headers = rows[0].map((header) => header.trim().toLowerCase());
+  const headers = rows[0].map((header) => header.trim().replace(/^["']|["']$/g, "").toLowerCase());
   
-  if (!headers.includes("email")) {
-    throw new Error("Missing required column: email");
+  const emailIndex = headers.findIndex(
+    (h) => h === "email" || h === "email address" || h === "email_address" || h === "e-mail" || h === "mail"
+  );
+
+  if (emailIndex === -1) {
+    throw new Error("Missing required column: email (accepts email, Email, Email Address, e-mail)");
   }
 
   return rows.slice(1).map((values) => {
@@ -76,16 +87,14 @@ export const parseSheetData = (rows: string[][]): ParsedLead[] => {
       row[header] = values[index]?.trim() || "";
     });
 
-    if (!row.email) {
-      throw new Error("Empty email field found");
-    }
+    const rawEmail = values[emailIndex]?.trim().toLowerCase() || "";
 
     return {
-      companyName: row.company_name || row.companyname || "",
-      domainName: row.domain_name || row.domainname || "",
-      firstName: row.first_name || row.firstname || "",
-      email: row.email.trim().toLowerCase(),
+      companyName: row.company_name || row.companyname || row.company || "",
+      domainName: row.domain_name || row.domainname || row.domain || row.website || "",
+      firstName: row.first_name || row.firstname || row.name || "",
+      email: rawEmail,
       customFields: {}
     };
-  }).filter(lead => lead.email); // Filter out rows without email
+  }).filter(lead => lead.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.email));
 };

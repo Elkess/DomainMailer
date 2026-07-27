@@ -194,12 +194,16 @@ export default function CampaignDetailPage() {
     try {
       let totalInserted = 0;
       let totalSkipped = 0;
+      let invalidLinesList: string[] = [];
 
       // 1. Add manual emails
       if (newEmails.trim()) {
         const result = await api.addLead(campaignId, { emails: newEmails });
         totalInserted += result.inserted;
         totalSkipped += result.skipped;
+        if (result.invalidLines && result.invalidLines.length > 0) {
+          invalidLinesList = result.invalidLines;
+        }
       }
 
       // 2. Upload CSV if provided
@@ -209,7 +213,12 @@ export default function CampaignDetailPage() {
         totalInserted += result.inserted;
       }
 
-      setAddResult(`✅ Added ${totalInserted} recipient(s)${totalSkipped > 0 ? ` (${totalSkipped} skipped - already exist)` : ""}`);
+      let msg = `✅ Added ${totalInserted} recipient(s)${totalSkipped > 0 ? ` (${totalSkipped} skipped - already exist)` : ""}`;
+      if (invalidLinesList.length > 0) {
+        msg += `\n⚠️ Skipped ${invalidLinesList.length} non-email line(s): ${invalidLinesList.join(", ")}`;
+      }
+
+      setAddResult(msg);
       setNewEmails("");
       setCsvFile(null);
       await loadLeads();

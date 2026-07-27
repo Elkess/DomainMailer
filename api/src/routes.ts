@@ -308,6 +308,7 @@ export const createRoutes = () => {
         })
       }
     });
+    await campaignEvents.emitCampaignUpdate(input.campaignId, req.user.userId);
     res.status(201).json(result);
   });
   router.post("/leads/add", requireAuth, async (req, res) => {
@@ -320,22 +321,28 @@ export const createRoutes = () => {
       return;
     }
 
-    // Parse emails - split by newlines and filter out empty lines
-    const emailList = input.emails
-      .split(/\r?\n/)
-      .map(e => e.trim())
-      .filter(e => e.length > 0);
+    // Split by lines to track invalid lines vs valid email matches
+    const lines = input.emails.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const invalidLines: string[] = [];
+    const validEmails: string[] = [];
+    const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 
-    if (emailList.length === 0) {
-      res.status(400).json({ error: "No valid emails provided" });
-      return;
+    for (const line of lines) {
+      const matches = line.match(emailPattern);
+      if (matches && matches.length > 0) {
+        validEmails.push(...matches.map(e => e.toLowerCase()));
+      } else {
+        invalidLines.push(line);
+      }
     }
 
-    // Validate each email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const invalidEmails = emailList.filter(email => !emailRegex.test(email));
-    if (invalidEmails.length > 0) {
-      res.status(400).json({ error: `Invalid email(s): ${invalidEmails.join(", ")}` });
+    const emailList = Array.from(new Set(validEmails));
+
+    if (emailList.length === 0) {
+      res.status(400).json({ 
+        error: "No valid email addresses found in the provided text",
+        invalidLines
+      });
       return;
     }
 
@@ -343,14 +350,14 @@ export const createRoutes = () => {
     const existingLeads = await prisma.leads.findMany({
       where: {
         campaign_id: input.campaignId,
-        email: { in: emailList.map(e => e.toLowerCase()) }
+        email: { in: emailList }
       },
       select: { email: true }
     });
-    const existingEmails = new Set(existingLeads.map(l => l.email));
+    const existingEmails = new Set(existingLeads.map(l => l.email.toLowerCase()));
 
     // Filter only new emails
-    const newEmails = emailList.filter(email => !existingEmails.has(email.toLowerCase()));
+    const newEmails = emailList.filter(email => !existingEmails.has(email));
 
     if (newEmails.length > 0) {
       // Batch insert all new leads at once
@@ -359,7 +366,7 @@ export const createRoutes = () => {
           id: randomUUID(),
           user_id: req.user.userId,
           campaign_id: input.campaignId,
-          email: email.toLowerCase(),
+          email: email,
           first_name: "",
           company_name: "",
           domain_name: "",
@@ -369,10 +376,13 @@ export const createRoutes = () => {
       });
     }
 
+    await campaignEvents.emitCampaignUpdate(input.campaignId, req.user.userId);
+
     res.status(201).json({ 
       inserted: newEmails.length,
       total: emailList.length,
-      skipped: emailList.length - newEmails.length
+      skipped: emailList.length - newEmails.length,
+      invalidLines
     });
   });
 
