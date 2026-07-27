@@ -339,50 +339,40 @@ export const createRoutes = () => {
       return;
     }
 
-    // Create leads for all emails
-    const createdLeads = [];
-    for (const email of emailList) {
-      // Check if lead already exists
-      const existingLead = await prisma.leads.findFirst({
-        where: {
+    // Get existing emails in one query
+    const existingLeads = await prisma.leads.findMany({
+      where: {
+        campaign_id: input.campaignId,
+        email: { in: emailList.map(e => e.toLowerCase()) }
+      },
+      select: { email: true }
+    });
+    const existingEmails = new Set(existingLeads.map(l => l.email));
+
+    // Filter only new emails
+    const newEmails = emailList.filter(email => !existingEmails.has(email.toLowerCase()));
+
+    if (newEmails.length > 0) {
+      // Batch insert all new leads at once
+      await prisma.leads.createMany({
+        data: newEmails.map((email) => ({
+          id: randomUUID(),
+          user_id: req.user.userId,
           campaign_id: input.campaignId,
-          email: email.toLowerCase()
-        }
+          email: email.toLowerCase(),
+          first_name: "",
+          company_name: "",
+          domain_name: "",
+          custom_fields: JSON.stringify({}),
+          status: "PENDING"
+        }))
       });
-
-      if (!existingLead) {
-        const lead = await prisma.leads.create({
-          data: {
-            id: randomUUID(),
-            user_id: req.user.userId,
-            campaign_id: input.campaignId,
-            email: email.toLowerCase(),
-            first_name: "",
-            company_name: "",
-            domain_name: "",
-            custom_fields: JSON.stringify({}),
-            status: "PENDING"
-          }
-        });
-        createdLeads.push(lead);
-
-        await prisma.audit_logs.create({
-          data: {
-            user_id: req.user.userId,
-            action: "leads.add_manual",
-            resource: "lead",
-            resource_id: lead.id,
-            metadata: JSON.stringify({ campaignId: input.campaignId })
-          }
-        });
-      }
     }
 
     res.status(201).json({ 
-      leads: createdLeads,
-      inserted: createdLeads.length,
+      inserted: newEmails.length,
       total: emailList.length,
-      skipped: emailList.length - createdLeads.length
+      skipped: emailList.length - newEmails.length
     });
   });
 
@@ -544,12 +534,11 @@ export const createRoutes = () => {
     const campaignId = String(req.params.campaignId ?? "");
     const campaign = await prisma.campaigns.findFirst({
       where: { id: campaignId, user_id: req.user.userId },
-      include: {
-        leads: {
-          select: {
-            status: true
-          }
-        }
+      select: {
+        status: true,
+        follow_up2_body: true,
+        follow_up3_body: true,
+        follow_up4_body: true
       }
     });
     if (!campaign) {
@@ -557,14 +546,19 @@ export const createRoutes = () => {
       return;
     }
 
-    const counts = campaign.leads.reduce<Record<string, number>>(
-      (acc, lead) => {
-        const status = lead.status || 'UNKNOWN';
-        acc[status] = (acc[status] ?? 0) + 1;
-        return acc;
-      },
-      {}
-    );
+    // Use groupBy for efficient counting instead of loading all leads
+    const leadCounts = await prisma.leads.groupBy({
+      by: ['status'],
+      where: { campaign_id: campaignId },
+      _count: true
+    });
+
+    const counts: Record<string, number> = {};
+    for (const group of leadCounts) {
+      if (group.status) {
+        counts[group.status] = group._count;
+      }
+    }
 
     const pending = (counts['PENDING'] ?? 0) + (counts['QUEUED'] ?? 0) + (counts['SENDING'] ?? 0);
     const sent = counts['SENT'] ?? 0;

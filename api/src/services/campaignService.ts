@@ -69,9 +69,8 @@ export const campaignService = {
       throw new Error("Selected Gmail account is not available");
     }
 
-    // If campaign has a scheduled startTime, set it to ACTIVE immediately
-    // The worker will check if it's time to start sending via isCampaignAllowedNow()
-    const status = input.startTime ? CampaignStatus.ACTIVE : CampaignStatus.DRAFT;
+    // Always create as DRAFT first. The frontend will activate after all leads are loaded.
+    const status = CampaignStatus.DRAFT;
 
     const campaign = await prisma.campaigns.create({
       data: {

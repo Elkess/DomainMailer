@@ -132,12 +132,9 @@ export default function CampaignsPage() {
         delayMaxSeconds: form.delayMaxSeconds
       };
       
-      // Always set startTime - either scheduled time or current time for immediate start
+      // Only set startTime for scheduled campaigns since campaign is created as DRAFT first
       if (form.schedulingMode === "scheduled" && form.startDateTime) {
         payload.startTime = new Date(form.startDateTime).toISOString();
-      } else {
-        // For "Start Immediately", set startTime to now so campaign auto-activates
-        payload.startTime = new Date().toISOString();
       }
       
       // Add follow-up messages if provided
@@ -195,13 +192,28 @@ export default function CampaignsPage() {
       
       if (!leadsAdded) {
         setError("Campaign created but no leads were added. Please add recipients manually.");
+      } else {
+        // Activate the campaign now that all leads are loaded
+        await api.campaignAction(campaign.id, "start");
       }
       
       // Reset form
       setForm((prev) => ({ ...prev, name: "", startDateTime: "", schedulingMode: "now", emails: "" }));
       setCsvFile(null);
       setSheetForm({ url: "", range: "Sheet1!A:Z" });
-      await load();
+      
+      // Just refresh the single new campaign's stats instead of everything
+      try {
+        const stats = await api.getCampaignStats(campaign.id);
+        const newCampaignWithStats = { item: campaign, stats };
+        setCampaigns((prev) => {
+          const updated = [newCampaignWithStats, ...prev];
+          campaignsRef.current = updated;
+          return updated;
+        });
+      } catch {
+        await load();
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
