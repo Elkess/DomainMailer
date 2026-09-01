@@ -276,7 +276,14 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
         gmailAccountId: campaign.gmail_account_id,
         gmailAccountEmail: campaign.gmail_accounts.email
       });
-      await prisma.gmail_accounts.update({ where: { id: campaign.gmail_account_id }, data: { status: GmailAccountStatus.ERROR } });
+      await prisma.gmail_accounts.update({
+        where: { id: campaign.gmail_account_id },
+        data: {
+          status: GmailAccountStatus.ERROR,
+          access_token_encrypted: null,
+          access_token_expires_at: null
+        }
+      });
       await prisma.campaigns.update({ where: { id: campaign.id }, data: { status: CampaignStatus.PAUSED } });
       await prisma.leads.update({ 
         where: { id: lead.id }, 

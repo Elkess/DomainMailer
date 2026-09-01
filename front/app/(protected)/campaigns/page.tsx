@@ -75,8 +75,8 @@ export default function CampaignsPage() {
     try {
       const stats = await api.getCampaignStats(campaignId);
       setCampaigns((prev) => {
-        const updated = prev.map((campaign) => 
-          campaign.item.id === campaignId ? { ...campaign, stats } : campaign
+        const updated = prev.map((campaign) =>
+          campaign?.item?.id === campaignId ? { ...campaign, stats } : campaign
         );
         campaignsRef.current = updated;
         return updated;
@@ -327,20 +327,34 @@ export default function CampaignsPage() {
             {accounts.length === 0 ? (
               <p className="text-sm text-slate-400">No Gmail accounts connected yet.</p>
             ) : (
-              accounts.map((account) => (
-                <div key={account.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950 p-3">
-                  <div>
-                    <div className="font-medium text-slate-200 break-all">{account.email}</div>
-                    <div className="text-xs text-slate-400">{account.status}</div>
+              accounts.map((account) => {
+                const needsReconnect = account.status === "ERROR" || account.status === "REVOKED";
+                return (
+                  <div key={account.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950 p-3">
+                    <div>
+                      <div className="font-medium text-slate-200 break-all">{account.email}</div>
+                      <div className="text-xs text-slate-400">
+                        {needsReconnect ? "Reconnect needed" : account.status}
+                      </div>
+                    </div>
+                    {needsReconnect ? (
+                      <button
+                        onClick={onConnectGmail}
+                        className="w-fit rounded bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-500 transition"
+                      >
+                        Reconnect Gmail
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onDisconnectAccount(account.id)}
+                        className="w-fit rounded border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:bg-slate-800 transition"
+                      >
+                        Disconnect
+                      </button>
+                    )}
                   </div>
-                  <button
-                    onClick={() => onDisconnectAccount(account.id)}
-                    className="w-fit rounded border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:bg-slate-800 transition"
-                  >
-                    Disconnect
-                  </button>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
           )}
@@ -691,120 +705,125 @@ export default function CampaignsPage() {
             <h2 className="text-lg font-semibold text-sky-400">Your Campaigns</h2>
           </div>
           {!collapsed.campaignList && (
-          <>
-          <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            {campaigns.length > 0 && (
-              <div className="flex flex-wrap items-center gap-3">
-                {selectedCampaigns.size > 0 && (
-                  <>
-                    <span className="text-sm text-slate-400">
-                      {selectedCampaigns.size} selected
-                    </span>
-                    <button
-                      onClick={onDeleteSelected}
-                      disabled={deleting}
-                      className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-500 transition disabled:opacity-50"
-                    >
-                      {deleting ? "Deleting..." : "Delete Selected"}
-                    </button>
-                  </>
-                )}
-                <button
-                  onClick={toggleSelectAll}
-                  className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-400 hover:bg-slate-800 transition"
-                >
-                  {selectedCampaigns.size === campaigns.length ? "Deselect All" : "Select All"}
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {campaigns.length === 0 ? (
-              <p className="col-span-full text-center text-slate-400">No campaigns yet. Create one above!</p>
-            ) : (
-              campaigns.map(({ item, stats }) => (
-                <div
-                  key={item.id}
-                  className={`relative rounded-lg border bg-slate-950 p-4 transition ${
-                    selectedCampaigns.has(item.id)
-                      ? "border-sky-500 ring-2 ring-sky-500/20"
-                      : "border-slate-800 hover:border-sky-500 hover:bg-slate-900"
-                  }`}
-                >
-                  <div className="absolute top-3 right-3 z-10">
-                    <input
-                      type="checkbox"
-                      checked={selectedCampaigns.has(item.id)}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        toggleCampaignSelection(item.id);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="h-5 w-5 cursor-pointer rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
-                  <div
-                    onClick={() => router.push(`/campaigns/${item.id}`)}
-                    className="cursor-pointer pr-10"
-                  >
-                  <div className="mb-3">
-                    <h3 className="font-semibold text-slate-200 break-all">{item.name}</h3>
-                    {item.gmailAccountEmail && (
-                      <div className="mt-1 text-xs text-slate-400 break-all">
-                        Sender: {item.gmailAccountEmail}
-                        {item.gmailAccountStatus && item.gmailAccountStatus !== "ACTIVE" && (
-                          <span className="ml-2 rounded bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-400">
-                            {item.gmailAccountStatus}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <span className={`rounded px-2 py-0.5 text-[10px] font-semibold ${
-                        item.status === "ACTIVE" ? "bg-green-500/20 text-green-400" :
-                        item.status === "PAUSED" ? "bg-yellow-500/20 text-yellow-400" :
-                        item.status === "DRAFT" ? "bg-slate-500/20 text-slate-400" :
-                        "bg-blue-500/20 text-blue-400"
-                      }`}>
-                        {item.status}
-                      </span>
-                      {item.status === "ACTIVE" && item.startTime && new Date(item.startTime) > new Date() && (
-                        <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-400">
-                          ⏰ Scheduled
+            <>
+              <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                {campaigns.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    {selectedCampaigns.size > 0 && (
+                      <>
+                        <span className="text-sm text-slate-400">
+                          {selectedCampaigns.size} selected
                         </span>
-                      )}
-                    </div>
+                        <button
+                          onClick={onDeleteSelected}
+                          disabled={deleting}
+                          className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-500 transition disabled:opacity-50"
+                        >
+                          {deleting ? "Deleting..." : "Delete Selected"}
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={toggleSelectAll}
+                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-400 hover:bg-slate-800 transition"
+                    >
+                      {selectedCampaigns.size === campaigns.length ? "Deselect All" : "Select All"}
+                    </button>
                   </div>
+                )}
+              </div>
 
-                  <div className="mb-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
-                    <div>
-                      <div className="text-slate-400">Pending</div>
-                      <div className="font-semibold text-slate-200">{stats.pending}</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-400">Sent</div>
-                      <div className="font-semibold text-green-400">{stats.sent}</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-400">Failed</div>
-                      <div className="font-semibold text-red-400">{stats.failed}</div>
-                    </div>
-                  </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {campaigns.length === 0 ? (
+                  <p className="col-span-full text-center text-slate-400">No campaigns yet. Create one above!</p>
+                ) : (
+                  campaigns.map(({ item, stats }) => {
+                    if (!item?.id) return null;
+                    const startDate = item.startTime ? new Date(item.startTime) : null;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`relative rounded-lg border bg-slate-950 p-4 transition ${
+                          selectedCampaigns.has(item.id)
+                            ? "border-sky-500 ring-2 ring-sky-500/20"
+                            : "border-slate-800 hover:border-sky-500 hover:bg-slate-900"
+                        }`}
+                      >
+                        <div className="absolute top-3 right-3 z-10">
+                          <input
+                            type="checkbox"
+                            checked={selectedCampaigns.has(item.id)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              toggleCampaignSelection(item.id);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-5 w-5 cursor-pointer rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-2 focus:ring-sky-500"
+                          />
+                        </div>
+                        <div
+                          onClick={() => router.push(`/campaigns/${item.id}`)}
+                          className="cursor-pointer pr-10"
+                        >
+                          <div className="mb-3">
+                            <h3 className="font-semibold text-slate-200 break-all">{item.name}</h3>
+                            {item.gmailAccountEmail && (
+                              <div className="mt-1 text-xs text-slate-400 break-all">
+                                Sender: {item.gmailAccountEmail}
+                                {item.gmailAccountStatus && item.gmailAccountStatus !== "ACTIVE" && (
+                                  <span className="ml-2 rounded bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-400">
+                                    {item.gmailAccountStatus}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                              <span className={`rounded px-2 py-0.5 text-[10px] font-semibold ${
+                                item.status === "ACTIVE" ? "bg-green-500/20 text-green-400" :
+                                item.status === "PAUSED" ? "bg-yellow-500/20 text-yellow-400" :
+                                item.status === "DRAFT" ? "bg-slate-500/20 text-slate-400" :
+                                "bg-blue-500/20 text-blue-400"
+                              }`}>
+                                {item.status}
+                              </span>
+                              {item.status === "ACTIVE" && startDate && startDate > new Date() && (
+                                <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-400">
+                                  ⏰ Scheduled
+                                </span>
+                              )}
+                            </div>
+                          </div>
 
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                    <div
-                      className="h-full bg-gradient-to-r from-sky-500 to-green-500 transition-all duration-500"
-                      style={{ width: `${stats.progress}%` }}
-                    ></div>
-                  </div>
+                          <div className="mb-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
+                            <div>
+                              <div className="text-slate-400">Pending</div>
+                              <div className="font-semibold text-slate-200">{stats.pending}</div>
+                            </div>
+                            <div>
+                              <div className="text-slate-400">Sent</div>
+                              <div className="font-semibold text-green-400">{stats.sent}</div>
+                            </div>
+                            <div>
+                              <div className="text-slate-400">Failed</div>
+                              <div className="font-semibold text-red-400">{stats.failed}</div>
+                            </div>
+                          </div>
 
-                  <div className="mt-2 text-right text-xs text-slate-400">{stats.progress}% complete</div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-          </>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                            <div
+                              className="h-full bg-gradient-to-r from-sky-500 to-green-500 transition-all duration-500"
+                              style={{ width: `${stats.progress}%` }}
+                            ></div>
+                          </div>
+
+                          <div className="mt-2 text-right text-xs text-slate-400">{stats.progress}% complete</div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
           )}
         </section>
       </div>

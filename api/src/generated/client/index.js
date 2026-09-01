@@ -270,7 +270,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "/home/abdessamad/Desktop/DomainMailer/api/src/generated/client",
+      "value": "/home/opc/Desktop/DomainMailer/api/src/generated/client",
       "fromEnvVar": null
     },
     "config": {
@@ -284,7 +284,7 @@ const config = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "/home/abdessamad/Desktop/DomainMailer/api/prisma/schema.prisma",
+    "sourceFilePath": "/home/opc/Desktop/DomainMailer/api/prisma/schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {

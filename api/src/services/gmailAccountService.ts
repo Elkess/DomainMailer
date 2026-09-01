@@ -49,7 +49,11 @@ export const gmailAccountService = {
   async disconnect(userId: string, accountId: string) {
     await prisma.gmail_accounts.updateMany({
       where: { id: accountId, user_id: userId },
-      data: { status: GmailAccountStatus.ERROR }
+      data: {
+        status: GmailAccountStatus.ERROR,
+        access_token_encrypted: null,
+        access_token_expires_at: null
+      }
     });
   },
 

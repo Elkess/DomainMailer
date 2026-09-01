@@ -80,9 +80,12 @@ export default function CampaignDetailPage() {
   useEffect(() => {
     if (!campaign?.startTime) return;
 
+    const startDate = new Date(campaign.startTime);
+    if (Number.isNaN(startDate.getTime())) return;
+
     const updateCountdown = () => {
       const now = new Date().getTime();
-      const start = new Date(campaign.startTime!).getTime();
+      const start = startDate.getTime();
       const distance = start - now;
 
       if (distance <= 0) {
@@ -169,6 +172,19 @@ export default function CampaignDetailPage() {
       } else {
         await loadCampaign();
       }
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const gmailNeedsReconnect =
+    campaign?.gmailAccountStatus === "ERROR" ||
+    campaign?.gmailAccountStatus === "REVOKED";
+
+  const onReconnectGmail = async () => {
+    try {
+      const data = await api.getGmailOAuthUrl();
+      window.open(data.url, "_blank", "width=900,height=800");
     } catch (err: any) {
       setError(err.message);
     }
@@ -273,16 +289,43 @@ export default function CampaignDetailPage() {
 
         {/* Campaign Header */}
         <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
+          {gmailNeedsReconnect && (
+            <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-amber-300">Reconnect needed for the Gmail sender</div>
+                  <div className="text-xs text-amber-200/80">
+                    The current Google connection expired or was revoked. Reconnect it to resume sending.
+                  </div>
+                </div>
+                <button
+                  onClick={onReconnectGmail}
+                  className="rounded bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-500 transition"
+                >
+                  Reconnect Gmail
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="mb-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="flex-1">
               <h1 className="text-xl sm:text-2xl font-bold text-sky-400 break-all">{campaign.name}</h1>
               {campaign.gmailAccountEmail && (
-                <div className="mt-2 text-sm text-slate-400 break-all">
-                  Sender: {campaign.gmailAccountEmail}
+                <div className="mt-2 flex flex-col gap-2 text-sm text-slate-400 break-all sm:flex-row sm:items-center">
+                  <span>Sender: {campaign.gmailAccountEmail}</span>
                   {campaign.gmailAccountStatus && campaign.gmailAccountStatus !== "ACTIVE" && (
-                    <span className="ml-2 rounded bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-400">
-                      {campaign.gmailAccountStatus}
+                    <span className="w-fit rounded bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-400">
+                      {campaign.gmailAccountStatus === "ERROR" ? "Reconnect needed" : campaign.gmailAccountStatus}
                     </span>
+                  )}
+                  {gmailNeedsReconnect && (
+                    <button
+                      onClick={onReconnectGmail}
+                      className="w-fit rounded bg-amber-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-amber-500 transition"
+                    >
+                      Reconnect
+                    </button>
                   )}
                 </div>
               )}
