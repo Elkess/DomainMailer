@@ -30,10 +30,10 @@ export default function CampaignsPage() {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [sheetForm, setSheetForm] = useState({ url: "", range: "Sheet1!A:Z" });
   const [collapsed, setCollapsed] = useState({
-    gmailAccounts: false,
-    createForm: false,
-    recipients: false,
-    followUps: false,
+    gmailAccounts: true,
+    createForm: true,
+    recipients: true,
+    followUps: true,
     campaignList: false,
   });
 
