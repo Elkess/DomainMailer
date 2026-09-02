@@ -23,6 +23,8 @@ export default function CampaignsPage() {
   const [creating, setCreating] = useState(false);
   const [selectedCampaigns, setSelectedCampaigns] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [resuming, setResuming] = useState(false);
+  const [pausing, setPausing] = useState(false);
   const [uploadingCsv, setUploadingCsv] = useState(false);
   const [importingSheet, setImportingSheet] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -281,6 +283,51 @@ export default function CampaignsPage() {
       setDeleting(false);
     }
   };
+
+  const onResumeSelected = async () => {
+    if (selectedCampaigns.size === 0) return;
+    const targets = campaigns.filter((c) => selectedCampaigns.has(c.item.id) && c.item.status === "PAUSED");
+    if (targets.length === 0) {
+      setError("No paused campaigns selected to resume.");
+      return;
+    }
+    if (!confirm(`Resume ${targets.length} campaign(s)?`)) return;
+    setResuming(true);
+    setError("");
+    try {
+      await Promise.all(targets.map((t) => api.campaignAction(t.item.id, "resume")));
+      setSelectedCampaigns(new Set());
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setResuming(false);
+    }
+  };
+
+  const onPauseSelected = async () => {
+    if (selectedCampaigns.size === 0) return;
+    const targets = campaigns.filter((c) => selectedCampaigns.has(c.item.id) && c.item.status === "ACTIVE");
+    if (targets.length === 0) {
+      setError("No active campaigns selected to pause.");
+      return;
+    }
+    if (!confirm(`Pause ${targets.length} campaign(s)?`)) return;
+    setPausing(true);
+    setError("");
+    try {
+      await Promise.all(targets.map((t) => api.campaignAction(t.item.id, "pause")));
+      setSelectedCampaigns(new Set());
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setPausing(false);
+    }
+  };
+
+  const selectedPausedCount = campaigns.filter((c) => selectedCampaigns.has(c.item.id) && c.item.status === "PAUSED").length;
+  const selectedActiveCount = campaigns.filter((c) => selectedCampaigns.has(c.item.id) && c.item.status === "ACTIVE").length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 sm:p-6">
@@ -715,8 +762,22 @@ export default function CampaignsPage() {
                           {selectedCampaigns.size} selected
                         </span>
                         <button
+                          onClick={onResumeSelected}
+                          disabled={resuming || pausing || deleting || selectedPausedCount === 0}
+                          className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-500 transition disabled:opacity-50"
+                        >
+                          {resuming ? "Resuming..." : "Resume Selected"}
+                        </button>
+                        <button
+                          onClick={onPauseSelected}
+                          disabled={pausing || resuming || deleting || selectedActiveCount === 0}
+                          className="rounded-lg bg-yellow-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-yellow-500 transition disabled:opacity-50"
+                        >
+                          {pausing ? "Pausing..." : "Pause Selected"}
+                        </button>
+                        <button
                           onClick={onDeleteSelected}
-                          disabled={deleting}
+                          disabled={deleting || resuming || pausing}
                           className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-500 transition disabled:opacity-50"
                         >
                           {deleting ? "Deleting..." : "Delete Selected"}
