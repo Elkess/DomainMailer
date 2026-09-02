@@ -67,7 +67,16 @@ const getRemainingSlots = async (campaign: { id: string; user_id: string; daily_
 };
 
 const pickNextLead = async (campaign: { id: string; user_id: string; follow_up2_body: string | null; follow_up2_delay_hours: number | null; follow_up3_body: string | null; follow_up3_delay_hours: number | null; follow_up4_body: string | null; follow_up4_delay_hours: number | null }) => {
-  // First priority: new pending leads
+  // First priority: leads re-queued after a transient Gmail token failure recovery
+  const queued = await prisma.leads.findFirst({
+    where: { campaign_id: campaign.id, user_id: campaign.user_id, status: LeadStatus.QUEUED },
+    orderBy: { created_at: "asc" }
+  });
+  if (queued) {
+    return { lead: queued, isFollowUp: false, followUpStep: 0 };
+  }
+
+  // Second priority: new pending leads
   const pending = await prisma.leads.findFirst({
     where: { campaign_id: campaign.id, user_id: campaign.user_id, status: LeadStatus.PENDING },
     orderBy: { created_at: "asc" }
@@ -413,6 +422,48 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
 
 let running = true;
 
+// Error patterns that indicate a sender-token problem (NOT a problem with the recipient/email).
+// Once the sender's Gmail account is active again, these leads can be safely retried.
+const TRANSIENT_FAILURE_PATTERNS = [
+  "Gmail access token refresh failed",
+  "insufficient authentication scopes",
+  "insufficientPermissions"
+];
+
+// Re-queue leads that failed only because of a Gmail token/scope issue, but only when
+// their campaign is ACTIVE and its Gmail sender account is ACTIVE again.
+const recoverTransientFailedLeads = async (): Promise<number> => {
+  const failedLeads = await prisma.leads.findMany({
+    where: {
+      status: LeadStatus.FAILED,
+      OR: TRANSIENT_FAILURE_PATTERNS.map(pattern => ({ error_message: { contains: pattern } })),
+      campaigns: {
+        is: {
+          status: CampaignStatus.ACTIVE,
+          gmail_accounts: { is: { status: GmailAccountStatus.ACTIVE } }
+        }
+      }
+    },
+    select: { id: true, email: true, campaign_id: true }
+  });
+
+  if (failedLeads.length === 0) {
+    return 0;
+  }
+
+  await prisma.leads.updateMany({
+    where: { id: { in: failedLeads.map(l => l.id) } },
+    // QUEUED = highest-priority resend: worker picks these before new pending leads
+    data: { status: LeadStatus.QUEUED, error_message: null }
+  });
+
+  logger.info(`♻️ Recovered ${failedLeads.length} lead(s) from transient Gmail token failures`, {
+    leads: failedLeads.map(l => ({ email: l.email, campaignId: l.campaign_id }))
+  });
+
+  return failedLeads.length;
+};
+
 // Shuffle array helper for randomization
 const shuffleArray = <T>(array: T[]): T[] => {
   const shuffled = [...array];
@@ -430,6 +481,16 @@ const runLoop = async (): Promise<void> => {
   
   while (running) {
     try {
+      // Re-queue leads that failed only due to a Gmail token/scope problem, now that
+      // their sender account is ACTIVE again. Runs first so recovered leads join the queue.
+      try {
+        await recoverTransientFailedLeads();
+      } catch (recoverError: any) {
+        logger.warn("Failed-lead recovery step errored", {
+          error: recoverError.message || String(recoverError)
+        });
+      }
+
       const activeCampaigns = await prisma.campaigns.findMany({ 
         where: { status: CampaignStatus.ACTIVE }, 
         select: { 
