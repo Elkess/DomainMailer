@@ -511,15 +511,23 @@ export const createRoutes = () => {
         sent_at: true,
         created_at: true,
         currentSequenceStep: true,
+        receivedReply: true,
         error_message: true
       },
       orderBy: { created_at: "desc" }
     });
 
-    // Map the leads, defaulting currentSequenceStep to 0 if null
+    // Map snake_case fields to camelCase for the frontend, and default
+    // currentSequenceStep/receivedReply to 0/false when null.
     const leadsWithSequence = leads.map(lead => ({
-      ...lead,
-      currentSequenceStep: lead.currentSequenceStep || 0
+      id: lead.id,
+      email: lead.email,
+      status: lead.status,
+      sentAt: lead.sent_at?.toISOString() || null,
+      createdAt: lead.created_at?.toISOString() || null,
+      currentSequenceStep: lead.currentSequenceStep || 0,
+      receivedReply: lead.receivedReply ?? false,
+      error_message: lead.error_message
     }));
 
     res.json({ leads: leadsWithSequence });

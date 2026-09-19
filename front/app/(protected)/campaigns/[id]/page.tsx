@@ -12,6 +12,41 @@ interface CampaignStats {
   progress: number;
 }
 
+interface LeadRow {
+  id: string;
+  email: string;
+  status: string;
+  sentAt: string | null;
+  createdAt: string;
+  currentSequenceStep?: number;
+  receivedReply?: boolean;
+  error_message?: string | null;
+}
+
+interface NextFollowUp {
+  step: number;
+  label: string;
+  dueAt: Date;
+  waitingCount: number;
+  isDue: boolean;
+}
+
+function formatDuration(distance: number): string {
+  const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+  } else if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+  return `${seconds}s`;
+}
+
 export default function CampaignDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -19,12 +54,14 @@ export default function CampaignDetailPage() {
   
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [stats, setStats] = useState<CampaignStats | null>(null);
-  const [leads, setLeads] = useState<Array<{ id: string; email: string; status: string; sentAt: string | null; createdAt: string; currentSequenceStep?: number; error_message?: string | null }>>([]);
+  const [leads, setLeads] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [error, setError] = useState("");
   const [showLeads, setShowLeads] = useState(false);
   const [countdown, setCountdown] = useState<string>("");
+  const [followUpCountdown, setFollowUpCountdown] = useState<string>("");
+  const [nextFollowUp, setNextFollowUp] = useState<NextFollowUp | null>(null);
 
   // Add recipients state
   const [showAddRecipients, setShowAddRecipients] = useState(false);
@@ -85,29 +122,8 @@ export default function CampaignDetailPage() {
     if (Number.isNaN(startDate.getTime())) return;
 
     const updateCountdown = () => {
-      const now = new Date().getTime();
-      const start = startDate.getTime();
-      const distance = start - now;
-
-      if (distance <= 0) {
-        setCountdown("Started");
-        return;
-      }
-
-      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-
-      if (days > 0) {
-        setCountdown(`${days}d ${hours}h ${minutes}m ${seconds}s`);
-      } else if (hours > 0) {
-        setCountdown(`${hours}h ${minutes}m ${seconds}s`);
-      } else if (minutes > 0) {
-        setCountdown(`${minutes}m ${seconds}s`);
-      } else {
-        setCountdown(`${seconds}s`);
-      }
+      const distance = startDate.getTime() - new Date().getTime();
+      setCountdown(distance <= 0 ? "Started" : formatDuration(distance));
     };
 
     updateCountdown();
@@ -115,6 +131,70 @@ export default function CampaignDetailPage() {
 
     return () => clearInterval(interval);
   }, [campaign?.startTime]);
+
+  // Compute the next upcoming follow-up. Mirrors the worker logic: a SENT lead at
+  // sequence step N becomes eligible for follow-up N+1 once sentAt + delayHours passes.
+  const getNextFollowUp = (): NextFollowUp | null => {
+    if (!campaign) return null;
+
+    const steps: Array<{ step: number; label: string; delay: number | null | undefined; body: string | null | undefined }> = [
+      { step: 2, label: "Follow-up #2", delay: campaign.followUp2DelayHours, body: campaign.followUp2Body },
+      { step: 3, label: "Follow-up #3", delay: campaign.followUp3DelayHours, body: campaign.followUp3Body },
+      { step: 4, label: "Follow-up #4 (Final)", delay: campaign.followUp4DelayHours, body: campaign.followUp4Body }
+    ];
+
+    const nowMs = Date.now();
+    let next: NextFollowUp | null = null;
+
+    for (const step of steps) {
+      // Skip steps where no follow-up template is configured
+      if (!step.body || !step.delay) continue;
+
+      // Leads waiting for this follow-up (no reply yet, last email sent at step - 1)
+      const waiting = leads.filter((lead) =>
+        lead.status === "SENT" &&
+        !lead.receivedReply &&
+        (lead.currentSequenceStep || 0) === step.step - 1 &&
+        lead.sentAt
+      );
+      if (waiting.length === 0) continue;
+
+      // The next follow-up fires when the earliest waiting lead reaches sentAt + delay
+      const dueMs = Math.min(
+        ...waiting.map((lead) => new Date(lead.sentAt as string).getTime() + (step.delay as number) * 3600_000)
+      );
+
+      if (!next || dueMs < next.dueAt.getTime()) {
+        next = {
+          step: step.step,
+          label: step.label,
+          dueAt: new Date(dueMs),
+          waitingCount: waiting.length,
+          isDue: dueMs <= nowMs
+        };
+      }
+    }
+
+    return next;
+  };
+
+  // Next follow-up countdown timer effect
+  useEffect(() => {
+    const update = () => {
+      const followUp = getNextFollowUp();
+      setNextFollowUp(followUp);
+      if (!followUp) {
+        setFollowUpCountdown("");
+        return;
+      }
+      const distance = followUp.dueAt.getTime() - Date.now();
+      setFollowUpCountdown(followUp.isDue ? "Due now" : formatDuration(distance));
+    };
+
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [campaign, leads]);
 
   // Determine current sequence step based on leads
   const getCurrentStep = (): number => {
@@ -447,7 +527,29 @@ export default function CampaignDetailPage() {
               </div>
             </div>
           )}
-          
+
+          {/* Next Follow-up Countdown */}
+          {nextFollowUp && (
+            <div className="mb-4 rounded-lg border border-violet-500/30 bg-violet-500/10 p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">{nextFollowUp.isDue ? "📬" : "⏳"}</div>
+                  <div>
+                    <div className="text-sm font-semibold text-violet-400">
+                      {nextFollowUp.isDue ? `${nextFollowUp.label} is due now` : `Next ${nextFollowUp.label} in`}
+                    </div>
+                    <div className="text-xs text-violet-300/70">
+                      {nextFollowUp.waitingCount} recipient(s) waiting • Next at: {nextFollowUp.dueAt.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-bold text-violet-400 tabular-nums">
+                  {nextFollowUp.isDue ? "Due now — sending when worker picks it up" : followUpCountdown}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Current Step Display */}
           {(() => {
             const currentStep = getCurrentStep();
