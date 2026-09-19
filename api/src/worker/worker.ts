@@ -1,5 +1,7 @@
 import { Prisma } from "../generated/client";
 import { randomUUID } from "crypto";
+import { statSync, truncateSync } from "fs";
+import { join } from "path";
 import { env } from "../config/env";
 import { logger } from "../lib/logger";
 import { prisma } from "../lib/prisma";
@@ -38,6 +40,13 @@ const randomDelayMs = (minSeconds: number, maxSeconds: number): number => {
   const max = Math.max(min, maxSeconds);
   return (Math.floor(Math.random() * (max - min + 1)) + min) * 1000;
 };;
+
+// How often (ms) the worker polls Gmail for replies to sent emails, and how many
+// leads are checked per pass. Kept low so Gmail API quota stays trivial.
+const REPLY_CHECK_INTERVAL_MS = Math.max(60_000, (env.REPLY_CHECK_INTERVAL_MINUTES ?? 5) * 60_000);
+const REPLY_CHECK_BATCH_SIZE = 20;
+// Maximum size allowed for worker.log before the worker empties it in place.
+const WORKER_LOG_MAX_BYTES = (env.WORKER_LOG_MAX_MB ?? 20) * 1024 * 1024;
 
 const pauseCampaign = async (campaignId: string, reason: string, meta: Record<string, unknown> = {}) => {
   logger.warn(reason, { campaignId, ...meta });
@@ -464,6 +473,188 @@ const recoverTransientFailedLeads = async (): Promise<number> => {
   return failedLeads.length;
 };
 
+// ---------------------------------------------------------------------------
+// Reply detection: poll Gmail for replies to emails we already sent. When a
+// recipient replies, mark the lead receivedReply=true + replied_at so the
+// follow-up picker skips them (no more follow-ups to that email).
+// ---------------------------------------------------------------------------
+let lastReplyCheckAt = 0;
+let replyCheckRunning = false;
+const lastReplyCheckByLead = new Map<string, number>();
+// Throttle repeated warnings per Gmail account so a broken token/scope doesn't flood logs
+const lastWarnByAccount = new Map<string, number>();
+const shouldWarnFor = (accountId: string, reason: string, now: number): boolean => {
+  const key = `${accountId}:${reason}`;
+  const last = lastWarnByAccount.get(key) ?? 0;
+  if (now - last < REPLY_CHECK_INTERVAL_MS) return false;
+  lastWarnByAccount.set(key, now);
+  return true;
+};
+
+// Never let one slow Gmail call block the whole worker loop.
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Gmail call timed out after ${ms}ms`)), ms))
+  ]);
+
+// Kick off a reply-detection pass in the background. The main loop keeps sending
+// emails while this runs, and overlapping passes are prevented.
+const triggerReplyCheck = (): void => {
+  if (replyCheckRunning) return;
+  const now = Date.now();
+  if (now - lastReplyCheckAt < REPLY_CHECK_INTERVAL_MS) return;
+  lastReplyCheckAt = now;
+  replyCheckRunning = true;
+  checkForReplies()
+    .catch((error: any) => {
+      logger.warn("Reply-detection pass errored", {
+        error: error.message || String(error)
+      });
+    })
+    .finally(() => {
+      replyCheckRunning = false;
+    });
+};
+
+const checkForReplies = async (): Promise<void> => {
+  const now = Date.now();
+
+  const candidates = await prisma.leads.findMany({
+    where: {
+      status: LeadStatus.SENT,
+      lastThreadId: { not: null },
+      // receivedReply is either false or null for leads still waiting for a reply
+      OR: [
+        { receivedReply: false },
+        { receivedReply: null }
+      ],
+      currentSequenceStep: { lt: 4 },
+      campaigns: {
+        is: {
+          status: CampaignStatus.ACTIVE,
+          gmail_accounts: { is: { status: GmailAccountStatus.ACTIVE } }
+        }
+      }
+    },
+    include: { campaigns: { include: { gmail_accounts: true } } },
+    // Oldest sends first: those are the ones closest to their next follow-up.
+    orderBy: { sent_at: "asc" as "asc" },
+    take: REPLY_CHECK_BATCH_SIZE
+  });
+
+  if (candidates.length === 0) {
+    return;
+  }
+  logger.info(`💬 Checking ${candidates.length} sent email(s) for replies`);
+
+  for (const lead of candidates) {
+    const lastChecked = lastReplyCheckByLead.get(lead.id) ?? 0;
+    if (now - lastChecked < REPLY_CHECK_INTERVAL_MS) continue;
+    lastReplyCheckByLead.set(lead.id, now);
+
+    const account = lead.campaigns.gmail_accounts;
+    const refreshToken = decrypt(account.refresh_token_encrypted);
+    let accessToken = account.access_token_encrypted ? decrypt(account.access_token_encrypted) : "";
+    if (!accessToken || (account.access_token_expires_at ?? new Date(0)).getTime() <= now + 60_000) {
+      const refreshed = await withTimeout(gmailService.refreshAccessToken(refreshToken), 10_000).catch(() => null);
+      if (!refreshed) {
+        if (shouldWarnFor(account.id, "refresh", now)) {
+          logger.warn("Reply check skipped - unable to refresh Gmail access token (reconnect the account)", {
+            gmailAccountId: account.id,
+            gmailAccountEmail: account.email
+          });
+        }
+        continue;
+      }
+      accessToken = refreshed.accessToken;
+    }
+
+    const result = await withTimeout(
+      gmailService.checkThreadForReply({
+        accessToken,
+        threadId: lead.lastThreadId || "",
+        leadEmail: lead.email,
+        sentAt: lead.sent_at
+      }),
+      10_000
+    ).catch((timeoutError: any) => ({
+      ok: false,
+      replied: false,
+      statusCode: 0,
+      error: timeoutError.message || "timeout"
+    }));
+
+    if (!result.ok) {
+      if (result.statusCode === 403) {
+        if (shouldWarnFor(account.id, "scope", now)) {
+          logger.warn("Reply check needs gmail.readonly scope - reconnect the Gmail account to enable reply detection", {
+            gmailAccountId: account.id,
+            gmailAccountEmail: account.email,
+            leadId: lead.id
+          });
+        }
+      } else if (shouldWarnFor(account.id, "error", now)) {
+        logger.warn("Reply check failed", {
+          leadId: lead.id,
+          gmailAccountEmail: account.email,
+          statusCode: result.statusCode,
+          error: result.error
+        });
+      }
+      continue;
+    }
+
+    if (result.replied) {
+      await prisma.leads.update({
+        where: { id: lead.id },
+        data: { receivedReply: true, replied_at: new Date() }
+      });
+      logger.info("💬 Reply detected - follow-ups stopped for this lead", {
+        leadId: lead.id,
+        email: lead.email,
+        campaignId: lead.campaign_id
+      });
+    }
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Log rotation: keeps worker.log (nohup stdout redirect) from growing forever.
+// Truncates the file in place so the running process keeps the same inode and
+// keeps appending (the start scripts redirect with ">>" for exactly this).
+// ---------------------------------------------------------------------------
+let lastWorkerLogRotationCheck = 0;
+
+const rotateWorkerLogIfNeeded = (): void => {
+  // stat is a cheap syscall, but no need to run it more than once per minute.
+  const now = Date.now();
+  if (now - lastWorkerLogRotationCheck < 60_000) return;
+  lastWorkerLogRotationCheck = now;
+
+  // Cover both deployment layouts: cmds writes to api/worker.log (worker cwd)
+  // and startAll.sh writes to the project root (two dirs up from src/worker).
+  const logCandidates = [
+    join(process.cwd(), "worker.log"),
+    join(__dirname, "..", "..", "worker.log")
+  ];
+
+  for (const logPath of logCandidates) {
+    try {
+      const stat = statSync(logPath);
+      if (stat.size > WORKER_LOG_MAX_BYTES) {
+        truncateSync(logPath, 0);
+        logger.info("🪵 worker.log was too large - emptied it", {
+          path: logPath,
+          previousSizeMb: Number((stat.size / 1024 / 1024).toFixed(1))
+        });
+      }
+    } catch {
+      // The file may not exist at this path (e.g. worker started via docker/pm2) - ignore.
+    }
+  }
+};
+
 // Shuffle array helper for randomization
 const shuffleArray = <T>(array: T[]): T[] => {
   const shuffled = [...array];
@@ -490,6 +681,13 @@ const runLoop = async (): Promise<void> => {
           error: recoverError.message || String(recoverError)
         });
       }
+
+      // Detect inbound replies so follow-ups to that email stop. Runs in the
+      // background (throttled) so it can never delay email sending.
+      triggerReplyCheck();
+
+      // Empty worker.log in place once it grows past WORKER_LOG_MAX_MB.
+      rotateWorkerLogIfNeeded();
 
       const activeCampaigns = await prisma.campaigns.findMany({ 
         where: { status: CampaignStatus.ACTIVE }, 

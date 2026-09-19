@@ -58,7 +58,11 @@ export const gmailAccountService = {
   },
 
   async list(userId: string) {
-    return prisma.gmail_accounts.findMany({ where: { user_id: userId }, orderBy: { created_at: "desc" } });
+    return prisma.gmail_accounts.findMany({
+      where: { user_id: userId },
+      select: { id: true, email: true, status: true, created_at: true },
+      orderBy: { created_at: "desc" }
+    });
   },
 
   async getDecryptedCredentials(userId: string, accountId: string) {

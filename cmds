@@ -4,8 +4,8 @@ cd front && nohup npm run dev < /dev/null > front.log 2>&1 & cd ..
 # 2. Start the API (added < /dev/null)
 cd api && nohup npm run dev < /dev/null > api.log 2>&1 & cd ..
 
-# 3. Start the Worker (added < /dev/null just in case it watches files)
-cd api && nohup npm run worker < /dev/null > worker.log 2>&1 & cd ..
+# 3. Start the Worker (added < /dev/null just in case it watches files). Use ">>"
+cd api && nohup npm run worker < /dev/null >> worker.log 2>&1 & cd ..
 
 # Wait a brief moment for the tunnels to initialize and allocate ports
 sleep 2
@@ -31,9 +31,8 @@ sudo fuser -k 4000/tcp
 
 
 
-pm2 status — See if the worker is running and how much memory it's using.
-
-pm2 logs — View live console logs and errors from your worker.
+# pm2 status — See if the worker is running and how much memory it's using.
+# pm2 logs — View live console logs and errors from your worker.
 # Restart the worker if you push code updates.
 pm2 restart mailer-worker
 

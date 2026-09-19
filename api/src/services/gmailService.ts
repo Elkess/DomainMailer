@@ -34,6 +34,7 @@ export const gmailService = {
       access_type: "offline",
       scope: [
         "https://www.googleapis.com/auth/gmail.send", 
+        "https://www.googleapis.com/auth/gmail.readonly",
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/spreadsheets.readonly"
       ],
@@ -129,6 +130,58 @@ export const gmailService = {
         body: JSON.stringify(error?.response?.data ?? error?.message ?? "Unknown Gmail error"),
         rateLimited: statusCode === 429,
         unauthorized: statusCode === 401
+      };
+    }
+  },
+
+  // Checks a Gmail thread (the one we created when sending to a lead) for a
+  // reply from the lead's own address that arrived AFTER we sent our email.
+  // Only our own follow-ups share the thread, and those come "From" our account,
+  // so they are never mistaken for an inbound reply.
+  async checkThreadForReply(input: {
+    accessToken: string;
+    threadId: string;
+    leadEmail: string;
+    sentAt?: Date | null;
+  }): Promise<{ ok: boolean; replied: boolean; statusCode: number; error?: string }> {
+    if (!input.threadId) {
+      return { ok: true, replied: false, statusCode: 200 };
+    }
+
+    const oauth = createOAuth();
+    oauth.setCredentials({ access_token: input.accessToken });
+
+    try {
+      const gmail = google.gmail({ version: "v1", auth: oauth });
+      const response = await gmail.users.threads.get({
+        userId: "me",
+        id: input.threadId,
+        format: "full"
+      });
+
+      const messages = response.data.messages ?? [];
+      const leadLower = input.leadEmail.trim().toLowerCase();
+      const sentMs = input.sentAt ? input.sentAt.getTime() : 0;
+
+      for (const message of messages) {
+        const headers = message.payload?.headers ?? [];
+        const fromHeader = headers.find((h) => (h.name ?? "").toLowerCase() === "from")?.value ?? "";
+        if (!fromHeader.toLowerCase().includes(leadLower)) continue;
+
+        const internalDate = Number(message.internalDate ?? 0);
+        if (internalDate > sentMs) {
+          return { ok: true, replied: true, statusCode: 200 };
+        }
+      }
+
+      return { ok: true, replied: false, statusCode: 200 };
+    } catch (error: any) {
+      const statusCode = Number(error?.code ?? error?.response?.status ?? 500);
+      return {
+        ok: false,
+        replied: false,
+        statusCode,
+        error: JSON.stringify(error?.response?.data ?? error?.message ?? "Unknown Gmail error")
       };
     }
   }

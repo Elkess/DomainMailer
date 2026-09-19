@@ -26,7 +26,11 @@ const envSchema = z.object({
   GMAIL_CLIENT_ID: z.string().default(""),
   GMAIL_CLIENT_SECRET: z.string().default(""),
   GMAIL_REDIRECT_URI: z.string().url(),
-  FRONTEND_URL: z.string().url()
+  FRONTEND_URL: z.string().url(),
+  // How often (minutes) the worker polls Gmail for replies to sent emails.
+  REPLY_CHECK_INTERVAL_MINUTES: z.coerce.number().default(5),
+  // Maximum size (MB) allowed for worker.log before the worker empties it in place.
+  WORKER_LOG_MAX_MB: z.coerce.number().default(20)
 });
 
 const parsed = envSchema.parse(process.env);

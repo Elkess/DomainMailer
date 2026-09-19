@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, Campaign, apiBase } from "../../../lib/api";
+import { confirm } from "../../../lib/confirm";
 
 interface CampaignWithStats {
   item: Campaign;

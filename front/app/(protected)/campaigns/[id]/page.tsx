@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { api, Campaign, apiBase } from "../../../../lib/api";
+import { confirm } from "../../../../lib/confirm";
 
 interface CampaignStats {
   pending: number;
