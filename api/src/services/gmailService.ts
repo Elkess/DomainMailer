@@ -144,6 +144,7 @@ export const gmailService = {
     accessToken: string;
     threadId: string;
     leadEmail: string;
+    senderEmail?: string;
   }): Promise<{ ok: boolean; replied: boolean; statusCode: number; error?: string }> {
     if (!input.threadId) {
       return { ok: true, replied: false, statusCode: 200 };
@@ -161,14 +162,23 @@ export const gmailService = {
       });
 
       const messages = response.data.messages ?? [];
-      const leadLower = input.leadEmail.trim().toLowerCase();
 
       for (const message of messages) {
         const headers = message.payload?.headers ?? [];
         const fromHeader = headers.find((h) => (h.name ?? "").toLowerCase() === "from")?.value ?? "";
-        if (!fromHeader.toLowerCase().includes(leadLower)) continue;
-
-        return { ok: true, replied: true, statusCode: 200 };
+        
+        if (input.senderEmail) {
+          const senderLower = input.senderEmail.trim().toLowerCase();
+          // If the message is NOT from the sender, it's a reply from the lead (or someone else)
+          if (!fromHeader.toLowerCase().includes(senderLower)) {
+            return { ok: true, replied: true, statusCode: 200 };
+          }
+        } else {
+          const leadLower = input.leadEmail.trim().toLowerCase();
+          if (fromHeader.toLowerCase().includes(leadLower)) {
+            return { ok: true, replied: true, statusCode: 200 };
+          }
+        }
       }
 
       return { ok: true, replied: false, statusCode: 200 };

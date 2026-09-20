@@ -330,7 +330,7 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
   // before sending. If we can't confirm the thread is reply-free, skip this lead
   // and let a later iteration retry it (safer than emailing someone who replied).
   if (isFollowUp && lead.lastThreadId) {
-    const replyCheck = await checkThreadReply(accessToken, lead.lastThreadId, lead.email);
+    const replyCheck = await checkThreadReply(accessToken, lead.lastThreadId, lead.email, campaign.gmail_accounts.email);
 
     if (replyCheck.ok && replyCheck.replied) {
       // Marked as replied so the follow-up picker skips this lead permanently.
@@ -541,9 +541,9 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
 
 // Run a single-thread reply check with a timeout, always returning a result
 // object instead of throwing so a slow/failed check can never crash the loop.
-const checkThreadReply = async (accessToken: string, threadId: string, leadEmail: string) =>
+const checkThreadReply = async (accessToken: string, threadId: string, leadEmail: string, senderEmail: string) =>
   withTimeout(
-    gmailService.checkThreadForReply({ accessToken, threadId, leadEmail }),
+    gmailService.checkThreadForReply({ accessToken, threadId, leadEmail, senderEmail }),
     10_000
   ).catch((error: any) => ({
     ok: false,
@@ -630,7 +630,7 @@ const checkForReplies = async (): Promise<void> => {
         accessToken = refreshed.accessToken;
       }
 
-      const result = await checkThreadReply(accessToken, lead.lastThreadId || "", lead.email);
+      const result = await checkThreadReply(accessToken, lead.lastThreadId || "", lead.email, account.email);
 
       if (!result.ok) {
         if (result.statusCode === 403) {

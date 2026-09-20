@@ -728,6 +728,11 @@ export default function CampaignDetailPage() {
                             Email {lead.currentSequenceStep}/4
                           </span>
                         )}
+                        {lead.receivedReply && (
+                          <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/30">
+                            💬 Replied
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-slate-400">
                         {lead.status === "FAILED" && lead.error_message ? lead.error_message : "Status: " + lead.status} {lead.sentAt && `• Sent ${new Date(lead.sentAt).toLocaleString()}`}
