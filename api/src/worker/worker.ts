@@ -237,7 +237,7 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
     });
     
     // Check if there are leads that might be due for follow-ups soon
-   const potentialFollowUps = await prisma.leads.count({
+    const potentialFollowUps = await prisma.leads.count({
       where: {
         campaign_id: campaign.id,
         user_id: campaign.user_id,
@@ -249,12 +249,28 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
         currentSequenceStep: { not: 4 }
       }
     });
+
+    // All leads that replied are considered "done" — no more follow-ups will ever go to them.
+    // If every SENT lead has replied, the campaign is finished even if they didn't reach step 4.
+    const unrepliedSentCount = await prisma.leads.count({
+      where: {
+        campaign_id: campaign.id,
+        user_id: campaign.user_id,
+        status: LeadStatus.SENT,
+        OR: [
+          { receivedReply: false },
+          { receivedReply: null }
+        ]
+      }
+    });
     
-    if (openCount === 0 && followUpCount === 0 && potentialFollowUps === 0) {
-      logger.info(`✅ Campaign ${campaign.id} completed - no more emails to send`);
+    const allReplied = unrepliedSentCount === 0;
+    
+    if (openCount === 0 && (allReplied || (followUpCount === 0 && potentialFollowUps === 0))) {
+      logger.info(`✅ Campaign ${campaign.id} completed - no more emails to send (allReplied=${allReplied})`);
       await prisma.campaigns.update({ where: { id: campaign.id }, data: { status: CampaignStatus.COMPLETED } });
     } else {
-      logger.info(`⏳ Campaign ${campaign.id} waiting - pending: ${openCount}, due followups: ${followUpCount}, potential: ${potentialFollowUps}`);
+      logger.info(`⏳ Campaign ${campaign.id} waiting - pending: ${openCount}, due followups: ${followUpCount}, potential: ${potentialFollowUps}, unreplied: ${unrepliedSentCount}`);
     }
     return;
   }
