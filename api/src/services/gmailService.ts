@@ -135,14 +135,15 @@ export const gmailService = {
   },
 
   // Checks a Gmail thread (the one we created when sending to a lead) for a
-  // reply from the lead's own address that arrived AFTER we sent our email.
-  // Only our own follow-ups share the thread, and those come "From" our account,
-  // so they are never mistaken for an inbound reply.
+  // reply from the lead's own address. Only our own follow-ups share the thread,
+  // and those come "From" our account, so any message From the lead's address is
+  // unambiguously a reply. We deliberately do NOT compare against the lead's
+  // latest sent_at: every follow-up send updates sent_at, which would otherwise
+  // make earlier replies permanently invisible once a follow-up has gone out.
   async checkThreadForReply(input: {
     accessToken: string;
     threadId: string;
     leadEmail: string;
-    sentAt?: Date | null;
   }): Promise<{ ok: boolean; replied: boolean; statusCode: number; error?: string }> {
     if (!input.threadId) {
       return { ok: true, replied: false, statusCode: 200 };
@@ -161,17 +162,13 @@ export const gmailService = {
 
       const messages = response.data.messages ?? [];
       const leadLower = input.leadEmail.trim().toLowerCase();
-      const sentMs = input.sentAt ? input.sentAt.getTime() : 0;
 
       for (const message of messages) {
         const headers = message.payload?.headers ?? [];
         const fromHeader = headers.find((h) => (h.name ?? "").toLowerCase() === "from")?.value ?? "";
         if (!fromHeader.toLowerCase().includes(leadLower)) continue;
 
-        const internalDate = Number(message.internalDate ?? 0);
-        if (internalDate > sentMs) {
-          return { ok: true, replied: true, statusCode: 200 };
-        }
+        return { ok: true, replied: true, statusCode: 200 };
       }
 
       return { ok: true, replied: false, statusCode: 200 };

@@ -12,7 +12,9 @@ cd "$FRONT_DIR" && nohup npm run dev < /dev/null > "$PROJECT_ROOT/front.log" 2>&
 cd "$API_DIR" && nohup npm run dev < /dev/null > "$PROJECT_ROOT/api.log" 2>&1 &
 
 # 3. Start Worker (append mode so the worker can safely empty worker.log in place)
-cd "$API_DIR" && nohup npm run worker < /dev/null >> "$PROJECT_ROOT/worker.log" 2>&1 &
+  cd /home/opc/Desktop/DomainMailer/api && nohup npm run worker < /dev/null >> /home/opc/Desktop/DomainMailer/api/worker.log 2>&1 &
+
+
 
 # Wait for servers to spin up
 sleep 2

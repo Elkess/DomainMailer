@@ -41,10 +41,12 @@ const randomDelayMs = (minSeconds: number, maxSeconds: number): number => {
   return (Math.floor(Math.random() * (max - min + 1)) + min) * 1000;
 };;
 
-// How often (ms) the worker polls Gmail for replies to sent emails, and how many
-// leads are checked per pass. Kept low so Gmail API quota stays trivial.
+// How often (ms) the worker polls Gmail for replies to sent emails.
 const REPLY_CHECK_INTERVAL_MS = Math.max(60_000, (env.REPLY_CHECK_INTERVAL_MINUTES ?? 5) * 60_000);
-const REPLY_CHECK_BATCH_SIZE = 20;
+// Page size and per-pass cap for reply checks. Larger than before so leads aren't
+// left unchecked while their follow-up approaches, while still capping Gmail quota.
+const REPLY_CHECK_PAGE_SIZE = 50;
+const REPLY_CHECK_MAX_PER_PASS = 200;
 // Maximum size allowed for worker.log before the worker empties it in place.
 const WORKER_LOG_MAX_BYTES = (env.WORKER_LOG_MAX_MB ?? 20) * 1024 * 1024;
 
@@ -323,6 +325,45 @@ const processSingleLead = async (campaignId: string): Promise<void> => {
     });
   }
 
+  // Defense-in-depth: never send a follow-up to someone who already replied.
+  // The background reply pass is throttled, so re-check this single thread right
+  // before sending. If we can't confirm the thread is reply-free, skip this lead
+  // and let a later iteration retry it (safer than emailing someone who replied).
+  if (isFollowUp && lead.lastThreadId) {
+    const replyCheck = await checkThreadReply(accessToken, lead.lastThreadId, lead.email);
+
+    if (replyCheck.ok && replyCheck.replied) {
+      // Marked as replied so the follow-up picker skips this lead permanently.
+      await prisma.leads.update({
+        where: { id: lead.id },
+        data: { status: LeadStatus.SENT, receivedReply: true, replied_at: new Date() }
+      });
+      logger.info(`💬 Reply detected at send time - follow-up #${followUpStep} skipped`, {
+        leadId: lead.id,
+        email: lead.email,
+        followUpStep
+      });
+      return;
+    }
+
+    if (!replyCheck.ok) {
+      // Leave the lead SENT and try again next loop; never email someone who
+      // might have replied while reply detection is unavailable.
+      await prisma.leads.update({
+        where: { id: lead.id },
+        data: { status: LeadStatus.SENT }
+      });
+      logger.warn("Follow-up skipped - reply check could not complete", {
+        leadId: lead.id,
+        email: lead.email,
+        followUpStep,
+        statusCode: replyCheck.statusCode,
+        error: replyCheck.error
+      });
+      return;
+    }
+  }
+
   const response = await gmailService.sendMail({
     accessToken,
     refreshToken,
@@ -498,6 +539,19 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
     new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Gmail call timed out after ${ms}ms`)), ms))
   ]);
 
+// Run a single-thread reply check with a timeout, always returning a result
+// object instead of throwing so a slow/failed check can never crash the loop.
+const checkThreadReply = async (accessToken: string, threadId: string, leadEmail: string) =>
+  withTimeout(
+    gmailService.checkThreadForReply({ accessToken, threadId, leadEmail }),
+    10_000
+  ).catch((error: any) => ({
+    ok: false,
+    replied: false,
+    statusCode: 0,
+    error: error.message || "timeout"
+  }));
+
 // Kick off a reply-detection pass in the background. The main loop keeps sending
 // emails while this runs, and overlapping passes are prevented.
 const triggerReplyCheck = (): void => {
@@ -519,103 +573,102 @@ const triggerReplyCheck = (): void => {
 
 const checkForReplies = async (): Promise<void> => {
   const now = Date.now();
+  let checkedThisPass = 0;
+  let skip = 0;
 
-  const candidates = await prisma.leads.findMany({
-    where: {
-      status: LeadStatus.SENT,
-      lastThreadId: { not: null },
-      // receivedReply is either false or null for leads still waiting for a reply
-      OR: [
-        { receivedReply: false },
-        { receivedReply: null }
-      ],
-      currentSequenceStep: { lt: 4 },
-      campaigns: {
-        is: {
-          status: CampaignStatus.ACTIVE,
-          gmail_accounts: { is: { status: GmailAccountStatus.ACTIVE } }
+  while (checkedThisPass < REPLY_CHECK_MAX_PER_PASS) {
+    const candidates = await prisma.leads.findMany({
+      where: {
+        status: LeadStatus.SENT,
+        lastThreadId: { not: null },
+        // receivedReply is either false or null for leads still waiting for a reply
+        OR: [
+          { receivedReply: false },
+          { receivedReply: null }
+        ],
+        currentSequenceStep: { lt: 4 },
+        campaigns: {
+          is: {
+            status: CampaignStatus.ACTIVE,
+            gmail_accounts: { is: { status: GmailAccountStatus.ACTIVE } }
+          }
         }
+      },
+      include: { campaigns: { include: { gmail_accounts: true } } },
+      // Oldest sends first: those are the ones closest to their next follow-up.
+      orderBy: { sent_at: "asc" as "asc" },
+      skip,
+      take: REPLY_CHECK_PAGE_SIZE
+    });
+
+    if (candidates.length === 0) return;
+    logger.info(`💬 Checking ${candidates.length} sent email(s) for replies (offset ${skip})`);
+
+    let workedOnPage = false;
+    for (const lead of candidates) {
+      // Throttle repeated checks per lead (only once per REPLY_CHECK_INTERVAL_MS)
+      const lastChecked = lastReplyCheckByLead.get(lead.id) ?? 0;
+      if (now - lastChecked < REPLY_CHECK_INTERVAL_MS) continue;
+      lastReplyCheckByLead.set(lead.id, now);
+      checkedThisPass += 1;
+      workedOnPage = true;
+
+      const account = lead.campaigns.gmail_accounts;
+      const refreshToken = decrypt(account.refresh_token_encrypted);
+      let accessToken = account.access_token_encrypted ? decrypt(account.access_token_encrypted) : "";
+      if (!accessToken || (account.access_token_expires_at ?? new Date(0)).getTime() <= now + 60_000) {
+        const refreshed = await withTimeout(gmailService.refreshAccessToken(refreshToken), 10_000).catch(() => null);
+        if (!refreshed) {
+          if (shouldWarnFor(account.id, "refresh", now)) {
+            logger.warn("Reply check skipped - unable to refresh Gmail access token (reconnect the account)", {
+              gmailAccountId: account.id,
+              gmailAccountEmail: account.email
+            });
+          }
+          continue;
+        }
+        accessToken = refreshed.accessToken;
       }
-    },
-    include: { campaigns: { include: { gmail_accounts: true } } },
-    // Oldest sends first: those are the ones closest to their next follow-up.
-    orderBy: { sent_at: "asc" as "asc" },
-    take: REPLY_CHECK_BATCH_SIZE
-  });
 
-  if (candidates.length === 0) {
-    return;
-  }
-  logger.info(`💬 Checking ${candidates.length} sent email(s) for replies`);
+      const result = await checkThreadReply(accessToken, lead.lastThreadId || "", lead.email);
 
-  for (const lead of candidates) {
-    const lastChecked = lastReplyCheckByLead.get(lead.id) ?? 0;
-    if (now - lastChecked < REPLY_CHECK_INTERVAL_MS) continue;
-    lastReplyCheckByLead.set(lead.id, now);
-
-    const account = lead.campaigns.gmail_accounts;
-    const refreshToken = decrypt(account.refresh_token_encrypted);
-    let accessToken = account.access_token_encrypted ? decrypt(account.access_token_encrypted) : "";
-    if (!accessToken || (account.access_token_expires_at ?? new Date(0)).getTime() <= now + 60_000) {
-      const refreshed = await withTimeout(gmailService.refreshAccessToken(refreshToken), 10_000).catch(() => null);
-      if (!refreshed) {
-        if (shouldWarnFor(account.id, "refresh", now)) {
-          logger.warn("Reply check skipped - unable to refresh Gmail access token (reconnect the account)", {
-            gmailAccountId: account.id,
-            gmailAccountEmail: account.email
+      if (!result.ok) {
+        if (result.statusCode === 403) {
+          if (shouldWarnFor(account.id, "scope", now)) {
+            logger.warn("Reply check needs gmail.readonly scope - reconnect the Gmail account to enable reply detection", {
+              gmailAccountId: account.id,
+              gmailAccountEmail: account.email,
+              leadId: lead.id
+            });
+          }
+        } else if (shouldWarnFor(account.id, "error", now)) {
+          logger.warn("Reply check failed", {
+            leadId: lead.id,
+            gmailAccountEmail: account.email,
+            statusCode: result.statusCode,
+            error: result.error
           });
         }
         continue;
       }
-      accessToken = refreshed.accessToken;
-    }
 
-    const result = await withTimeout(
-      gmailService.checkThreadForReply({
-        accessToken,
-        threadId: lead.lastThreadId || "",
-        leadEmail: lead.email,
-        sentAt: lead.sent_at
-      }),
-      10_000
-    ).catch((timeoutError: any) => ({
-      ok: false,
-      replied: false,
-      statusCode: 0,
-      error: timeoutError.message || "timeout"
-    }));
-
-    if (!result.ok) {
-      if (result.statusCode === 403) {
-        if (shouldWarnFor(account.id, "scope", now)) {
-          logger.warn("Reply check needs gmail.readonly scope - reconnect the Gmail account to enable reply detection", {
-            gmailAccountId: account.id,
-            gmailAccountEmail: account.email,
-            leadId: lead.id
-          });
-        }
-      } else if (shouldWarnFor(account.id, "error", now)) {
-        logger.warn("Reply check failed", {
+      if (result.replied) {
+        await prisma.leads.update({
+          where: { id: lead.id },
+          data: { receivedReply: true, replied_at: new Date() }
+        });
+        logger.info("💬 Reply detected - follow-ups stopped for this lead", {
           leadId: lead.id,
-          gmailAccountEmail: account.email,
-          statusCode: result.statusCode,
-          error: result.error
+          email: lead.email,
+          campaignId: lead.campaign_id
         });
       }
-      continue;
     }
 
-    if (result.replied) {
-      await prisma.leads.update({
-        where: { id: lead.id },
-        data: { receivedReply: true, replied_at: new Date() }
-      });
-      logger.info("💬 Reply detected - follow-ups stopped for this lead", {
-        leadId: lead.id,
-        email: lead.email,
-        campaignId: lead.campaign_id
-      });
-    }
+    // Stop when the list is exhausted or this page produced no new checks because
+    // all remaining leads are inside their per-lead throttle window.
+    if (!workedOnPage || candidates.length < REPLY_CHECK_PAGE_SIZE) break;
+    skip += candidates.length;
   }
 };
 
