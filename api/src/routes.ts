@@ -398,8 +398,8 @@ export const createRoutes = () => {
       return;
     }
 
-    if (lead.sent_at || lead.status === "SENT" || lead.status === "SENDING") {
-      res.status(400).json({ error: "Cannot delete this lead because the email has already been sent or is currently sending" });
+    if (lead.status === "SENDING") {
+      res.status(400).json({ error: "Cannot delete this lead while it is currently being sent. Please try again in a moment." });
       return;
     }
 
