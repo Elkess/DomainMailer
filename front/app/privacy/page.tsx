@@ -93,9 +93,11 @@ export default function PrivacyPolicyPage() {
         </div>
 
         <div className="mt-8 flex justify-center gap-4 border-t border-slate-800 pt-6 text-sm">
+          <Link href="/" className="text-sky-400 hover:text-sky-300 underline">Home</Link>
+          <span className="text-slate-600">•</span>
           <Link href="/terms" className="text-sky-400 hover:text-sky-300 underline">Terms of Service</Link>
           <span className="text-slate-600">•</span>
-          <Link href="/login" className="text-sky-400 hover:text-sky-300 underline">Back to Login</Link>
+          <Link href="/login" className="text-sky-400 hover:text-sky-300 underline">Sign In</Link>
         </div>
       </main>
     </div>

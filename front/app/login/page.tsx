@@ -30,7 +30,16 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <main className="mx-auto w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-6">
-        <h1 className="mb-6 text-2xl font-semibold text-center">Login</h1>
+        <div className="mb-6 text-center">
+          <Link href="/" className="inline-flex items-center gap-2 mb-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-600 font-bold text-white text-sm">
+              DM
+            </div>
+            <span className="text-xl font-bold tracking-tight text-white">DomainMailer</span>
+          </Link>
+          <h1 className="text-xl font-semibold text-slate-200">Sign in to your account</h1>
+          <p className="text-xs text-slate-400 mt-1">Multi-user outreach SaaS for domain sellers</p>
+        </div>
         <form className="space-y-4" onSubmit={onSubmit}>
           <input
             className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
