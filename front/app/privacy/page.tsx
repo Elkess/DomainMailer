@@ -84,8 +84,8 @@ export default function PrivacyPolicyPage() {
             <h2 className="mb-2 text-lg font-semibold text-slate-100">6. Contact Us</h2>
             <p>
               If you have questions about this policy, reach us at{" "}
-              <a href="mailto:privacy@domainmailer.com" className="text-sky-400 underline hover:text-sky-300">
-                privacy@domainmailer.com
+              <a href="mailto:mohammedamineelkess@gmail.com" className="text-sky-400 underline hover:text-sky-300">
+                mohammedamineelkess@gmail.com
               </a>
               .
             </p>
