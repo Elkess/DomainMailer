@@ -53,6 +53,17 @@ export default function LoginPage() {
         <p className="mt-4 text-sm text-slate-400 text-center">
           No account? <Link href="/register" className="text-sky-400">Create one</Link>
         </p>
+        <div className="mt-6 border-t border-slate-800 pt-4 text-center text-xs text-slate-500">
+          By signing in, you agree to our{" "}
+          <Link href="/terms" className="text-slate-400 underline hover:text-slate-300">
+            Terms of Service
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="text-slate-400 underline hover:text-slate-300">
+            Privacy Policy
+          </Link>
+          .
+        </div>
       </main>
     </div>
   );
