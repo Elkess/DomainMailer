@@ -97,8 +97,8 @@ export default function TermsOfServicePage() {
             <h2 className="mb-2 text-lg font-semibold text-slate-100">8. Contact Information</h2>
             <p>
               For legal inquiries or questions regarding these Terms, contact us at{" "}
-              <a href="mailto:support@domainmailer.com" className="text-sky-400 underline hover:text-sky-300">
-                support@domainmailer.com
+              <a href="mailto:mohammedamineelkess@gmail.com" className="text-sky-400 underline hover:text-sky-300">
+                mohammedamineelkess@gmail.com
               </a>
               .
             </p>
