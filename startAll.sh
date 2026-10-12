@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define absolute paths to prevent navigation bugs
-PROJECT_ROOT="/home/abdessamad/Desktop/DomainMailer"
+PROJECT_ROOT="/home/opc/Desktop/DomainMailer"
 FRONT_DIR="$PROJECT_ROOT/front"
 API_DIR="$PROJECT_ROOT/api"
 

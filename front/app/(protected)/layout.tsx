@@ -19,7 +19,14 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-        <div className="text-center font-semibold sm:text-left">DomainMailer</div>
+        <Link href="/dashboard" className="flex items-center justify-center sm:justify-start gap-2.5 font-semibold text-white">
+          <img
+            src="/logo.jpg"
+            alt="DomainMailer Logo"
+            className="h-7 w-7 rounded-lg object-cover border border-slate-700/60"
+          />
+          <span>DomainMailer</span>
+        </Link>
         <div className="flex w-full flex-col gap-2 text-sm sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           <Link 
             className={`rounded-md px-3 py-2 text-center transition sm:py-1.5 ${pathname.includes("dashboard") ? "text-sky-400 bg-slate-800" : "text-slate-300 hover:bg-slate-800"}`} 

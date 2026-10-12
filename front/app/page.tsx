@@ -18,9 +18,11 @@ export default function HomePage() {
       {/* Top Navbar */}
       <header className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/90 px-6 py-4">
         <Link href="/" className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-600 font-bold text-white shadow-md shadow-sky-600/30">
-            DM
-          </div>
+          <img
+            src="/logo.jpg"
+            alt="DomainMailer Logo"
+            className="h-10 w-10 rounded-xl object-cover border border-slate-700/60 shadow-md shadow-sky-600/20"
+          />
           <span className="text-xl font-bold tracking-tight text-white">DomainMailer</span>
         </Link>
 
@@ -59,6 +61,13 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <section className="mx-auto max-w-4xl text-center">
+        <div className="mx-auto mb-6 flex justify-center">
+          <img
+            src="/logo.jpg"
+            alt="DomainMailer Logo"
+            className="h-20 w-20 rounded-2xl object-cover border border-slate-700/80 shadow-xl shadow-sky-600/20"
+          />
+        </div>
         <div className="inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-sky-950/40 px-3.5 py-1 text-xs font-medium text-sky-400 mb-6">
           <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
           Outbound Domain Sales SaaS

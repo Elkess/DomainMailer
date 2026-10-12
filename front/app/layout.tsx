@@ -4,7 +4,11 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "DomainMailer",
-  description: "Multi-user domain outreach SaaS"
+  description: "Multi-user domain outreach SaaS",
+  icons: {
+    icon: "/logo.jpg",
+    apple: "/logo.jpg"
+  }
 };
 
 export const viewport: Viewport = {

@@ -31,10 +31,12 @@ export default function LoginPage() {
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <main className="mx-auto w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-6">
         <div className="mb-6 text-center">
-          <Link href="/" className="inline-flex items-center gap-2 mb-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-600 font-bold text-white text-sm">
-              DM
-            </div>
+          <Link href="/" className="inline-flex items-center gap-2.5 mb-3">
+            <img
+              src="/logo.jpg"
+              alt="DomainMailer Logo"
+              className="h-9 w-9 rounded-xl object-cover border border-slate-700/60 shadow-md shadow-sky-600/20"
+            />
             <span className="text-xl font-bold tracking-tight text-white">DomainMailer</span>
           </Link>
           <h1 className="text-xl font-semibold text-slate-200">Sign in to your account</h1>
